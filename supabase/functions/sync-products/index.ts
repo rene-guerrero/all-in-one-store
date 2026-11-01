@@ -62,8 +62,10 @@ Deno.serve(async (req) => {
 
   try {
     const source = await fetchSourceProducts();
-    if (source.length === 0) throw new Error("Source returned 0 products; refusing to deactivate the whole catalog");
 
+    // Only feria-ventas fields are sent, so on conflict the upsert overwrites those and leaves
+    // admin-only fields (description, hidden, source) alone. Products that disappear from the
+    // source are never deleted or deactivated here.
     const rows = source.map((p) => ({
       id: p.id,
       name: p.nombre.trim(),
@@ -76,19 +78,13 @@ Deno.serve(async (req) => {
       synced_at: runStartedAt,
     }));
 
-    const { error: upsertError } = await db.from("products").upsert(rows);
-    if (upsertError) throw upsertError;
+    if (rows.length) {
+      const { error: upsertError } = await db.from("products").upsert(rows);
+      if (upsertError) throw upsertError;
+    }
 
-    // Anything not seen in this run was deleted or deactivated in the source.
-    const { count, error: deactivateError } = await db
-      .from("products")
-      .update({ active: false }, { count: "exact" })
-      .lt("synced_at", runStartedAt)
-      .eq("active", true);
-    if (deactivateError) throw deactivateError;
-
-    await db.from("sync_log").insert({ ok: true, product_count: rows.length, deactivated_count: count ?? 0 });
-    return Response.json({ ok: true, products: rows.length, deactivated: count ?? 0 });
+    await db.from("sync_log").insert({ ok: true, product_count: rows.length, deactivated_count: 0 });
+    return Response.json({ ok: true, products: rows.length });
   } catch (err) {
     const message = err instanceof Error ? err.message : JSON.stringify(err);
     await db.from("sync_log").insert({ ok: false, error: message });

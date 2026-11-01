@@ -112,23 +112,29 @@ $("#set-password").addEventListener("submit", async (e) => {
 async function loadProducts() {
   const { data, error } = await sb
     .from("products")
-    .select("id,name,category,stock,active,hidden,product_images(id,path,sort_order)")
+    .select(PRODUCT_FIELDS)
     .order("name");
   if (error) {
     $("#list-info").textContent = `Error: ${error.message}`;
     return;
   }
-  state.products = data.filter((p) => p.active).map((p) => ({
-    ...p,
-    product_images: p.product_images.sort((a, b) => a.sort_order - b.sort_order),
-    brand: brandOf(p.name),
-    categoryKey: fold(p.category).trim() || "otros",
-  }));
+  state.products = data.filter((p) => p.active).map(decorate);
   renderFilterOptions();
   renderList();
 }
 
+// Derived fields used by filters; recomputed whenever a product is saved.
+function decorate(p) {
+  return {
+    ...p,
+    product_images: (p.product_images || []).sort((a, b) => a.sort_order - b.sort_order),
+    brand: brandOf(p.name),
+    categoryKey: fold(p.category).trim() || "otros",
+  };
+}
+
 function renderFilterOptions() {
+  const kept = ["#filter-brand", "#filter-category"].map((sel) => [sel, $(sel).value]);
   const categories = {};
   for (const p of state.products) {
     const label = (p.category || "Otros").trim();
@@ -145,6 +151,9 @@ function renderFilterOptions() {
   for (const p of state.products) if (p.brand) brands[p.brand] = (brands[p.brand] || 0) + 1;
   $("#filter-brand").innerHTML = '<option value="">Marca</option>' +
     Object.keys(brands).sort().map((b) => `<option>${escapeHtml(b)}</option>`).join("");
+
+  $("#category-options").innerHTML = Object.values(categories).map((c) => `<option value="${escapeHtml(c.label)}">`).join("");
+  for (const [sel, value] of kept) if ([...$(sel).options].some((o) => o.value === value)) $(sel).value = value;
 }
 
 function renderList() {
@@ -165,7 +174,7 @@ function renderList() {
     const first = p.product_images[0];
     return `<li><button data-id="${p.id}" aria-current="${p.id === state.selectedId}">
       ${first ? `<img class="mini" src="${escapeHtml(publicUrl(first.path))}" alt="" loading="lazy">` : `<span class="mini mini-icon">${categoryIcon(fold(p.category).trim())}</span>`}
-      <span class="meta"><div>${escapeHtml(p.name)}</div><small>${escapeHtml(p.category || "")} · stock ${p.stock}${p.hidden ? " · oculto" : ""}</small></span>
+      <span class="meta"><div>${escapeHtml(p.name)}</div><small>${escapeHtml(p.category || "")} · stock ${p.stock}${p.hidden ? " · oculto" : ""}${p.source === "manual" ? " · manual" : ""}</small></span>
       <span class="tag ${p.product_images.length ? "ok" : ""}">${p.product_images.length} ${p.product_images.length === 1 ? "foto" : "fotos"}</span>
     </button></li>`;
   }).join("");
@@ -177,6 +186,11 @@ $("#products").addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-id]");
   if (!btn) return;
   openEditor(btn.dataset.id);
+});
+$("#new-product").addEventListener("click", () => {
+  state.draft = { id: null, name: "", category: "", stock: 0, description: "", hidden: false, source: "manual", product_images: [] };
+  openEditor(NEW_ID);
+  $("#product-form [name=name]").focus();
 });
 
 /* On phones the list and the editor are separate screens; the back button returns to the list. */
@@ -202,20 +216,49 @@ function closeEditor() {
 window.addEventListener("popstate", closeEditor);
 
 /* Editor */
-const selected = () => state.products.find((p) => p.id === state.selectedId);
+const NEW_ID = "new";
+const PRODUCT_FIELDS = "id,name,category,stock,active,hidden,source,description,product_images(id,path,sort_order)";
+const selected = () => (state.selectedId === NEW_ID ? state.draft : state.products.find((p) => p.id === state.selectedId));
+
+function productFormHtml(p) {
+  const isNew = !p.id;
+  const shopNote = p.hidden ? "Oculto en la tienda." : p.stock > 0 ? "" : "Sin stock: no se muestra en la tienda.";
+  return `
+    <div class="editor-title">
+      <div class="card-category">${escapeHtml(isNew ? "Nuevo producto" : p.category || "")}</div>
+      <h2>${escapeHtml(isNew ? "Nuevo producto" : p.name)}</h2>
+      <span class="tag ${p.source === "manual" ? "" : "ok"}">${p.source === "manual" ? "Creado en All in One" : "De feria-ventas"}</span>
+    </div>
+    <form class="product-form" id="product-form" novalidate>
+      ${p.source === "feria" ? '<p class="sync-note">Nombre, categoría y stock se actualizan cada día desde feria-ventas, así que tus cambios en esos campos se reemplazan en la próxima sincronización. Descripción y visibilidad son solo de All in One.</p>' : ""}
+      <label>Nombre<input name="name" required maxlength="120" value="${escapeHtml(p.name)}" autocomplete="off"></label>
+      <div class="form-row">
+        <label>Categoría<input name="category" list="category-options" maxlength="60" value="${escapeHtml(p.category || "")}" autocomplete="off"></label>
+        <label>Stock<input name="stock" type="number" min="0" step="1" inputmode="numeric" value="${p.stock}"></label>
+      </div>
+      <label>Descripción<textarea name="description" rows="3" maxlength="1000" placeholder="Opcional: material, colores, compatibilidad…">${escapeHtml(p.description || "")}</textarea></label>
+      <label class="check"><input type="checkbox" name="visible" ${p.hidden ? "" : "checked"}> Mostrar en la tienda</label>
+      ${shopNote ? `<small class="status">${shopNote}</small>` : ""}
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">${isNew ? "Crear producto" : "Guardar cambios"}</button>
+        ${isNew ? "" : '<button class="btn btn-danger" type="button" id="delete-product">Eliminar</button>'}
+      </div>
+      <div class="status" id="form-status" aria-live="polite"></div>
+    </form>`;
+}
 
 function renderEditor() {
   const p = selected();
   if (!p) return;
   const images = p.product_images;
-  const hiddenNote = p.hidden ? " · oculto en la tienda" : p.stock > 0 ? "" : " · sin stock, no se muestra en la tienda";
-  $("#editor").innerHTML = `
-    <button class="btn btn-sm back-btn" id="back" type="button">${ICON.back} Productos</button>
-    <div>
-      <div class="card-category">${escapeHtml(p.category || "")}</div>
-      <h2>${escapeHtml(p.name)}</h2>
-      <small class="status">Stock: ${p.stock}${hiddenNote}</small>
-    </div>
+  const back = `<button class="btn btn-sm back-btn" id="back" type="button">${ICON.back} Productos</button>`;
+  if (!p.id) {
+    $("#editor").innerHTML = back + productFormHtml(p) + '<p class="status">Después de crear el producto podrás agregarle fotos.</p>';
+    bindEditor();
+    return;
+  }
+  $("#editor").innerHTML = back + productFormHtml(p) + `
+    <h3 class="section-title">Fotos</h3>
     <div class="dropzone" id="dropzone">
       <div class="upload-buttons">
         <label class="btn btn-primary upload-btn">${ICON.camera}<span>Tomar foto</span>
@@ -248,8 +291,8 @@ function renderEditor() {
         </div>`).join("")}
     </div>`;
 
+  bindEditor();
   const dz = $("#dropzone");
-  $("#back").addEventListener("click", () => (history.state?.editor ? history.back() : closeEditor()));
   dz.querySelectorAll("[data-upload]").forEach((input) => input.addEventListener("change", (e) => {
     uploadFiles([...e.target.files]);
     e.target.value = "";
@@ -261,6 +304,93 @@ function renderEditor() {
     dz.classList.remove("drag");
     uploadFiles([...e.dataTransfer.files].filter((f) => f.type.startsWith("image/")));
   });
+}
+
+function bindEditor() {
+  $("#back").addEventListener("click", leaveEditor);
+  $("#product-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    saveProduct(e.target);
+  });
+  $("#delete-product")?.addEventListener("click", deleteProduct);
+}
+
+function leaveEditor() {
+  if (history.state?.editor) history.back();
+  else closeEditor();
+}
+
+function setFormStatus(message, isError = false) {
+  const status = $("#form-status");
+  if (!status) return;
+  status.textContent = message;
+  status.classList.toggle("error", isError);
+}
+
+async function saveProduct(form) {
+  const p = selected();
+  const f = new FormData(form);
+  const values = {
+    name: String(f.get("name")).trim(),
+    category: String(f.get("category")).trim() || null,
+    stock: Math.max(0, Number.parseInt(f.get("stock"), 10) || 0),
+    description: String(f.get("description")).trim() || null,
+    hidden: !f.get("visible"),
+    updated_at: new Date().toISOString(),
+  };
+  if (!values.name) {
+    setFormStatus("El nombre es obligatorio.", true);
+    form.elements.name.focus();
+    return;
+  }
+
+  setFormStatus("Guardando…");
+  const query = p.id
+    ? sb.from("products").update(values).eq("id", p.id)
+    : sb.from("products").insert({ ...values, source: "manual" });
+  const { data, error } = await query.select(PRODUCT_FIELDS).single();
+  if (error) {
+    // PGRST116: the update matched no row this session may change (signed out, or product gone).
+    const reason = error.code === "PGRST116" ? "tu sesión expiró o el producto ya no existe. Recarga la página." : error.message;
+    setFormStatus(`No se pudo guardar: ${reason}`, true);
+    return;
+  }
+
+  const saved = decorate(data);
+  if (p.id) state.products = state.products.map((x) => (x.id === saved.id ? saved : x));
+  else state.products.push(saved);
+  state.products.sort((a, b) => a.name.localeCompare(b.name, "es"));
+  state.selectedId = saved.id;
+  if (history.state?.editor) history.replaceState({ editor: saved.id }, "");
+  renderFilterOptions();
+  renderList();
+  renderEditor();
+  setFormStatus(p.id ? "Cambios guardados." : "Producto creado. Ya puedes agregar fotos.");
+}
+
+async function deleteProduct() {
+  const p = selected();
+  const photos = p.product_images.length;
+  const message = p.source === "feria"
+    ? `¿Eliminar "${p.name}"?\n\nEste producto viene de feria-ventas: si sigue activo allí, volverá a aparecer en la próxima sincronización (sin fotos ni descripción).\n\nPara quitarlo de la tienda sin que vuelva, mejor desmarca "Mostrar en la tienda".`
+    : `¿Eliminar "${p.name}"${photos ? ` y sus ${photos} fotos` : ""}? No se puede deshacer.`;
+  if (!confirm(message)) return;
+
+  setFormStatus("Eliminando…");
+  const { error } = await sb.from("products").delete().eq("id", p.id);
+  if (error) {
+    setFormStatus(`No se pudo eliminar: ${error.message}`, true);
+    return;
+  }
+  // Photo rows go with the product (on delete cascade); the files need removing separately.
+  if (photos) await sb.storage.from(BUCKET).remove(p.product_images.map((img) => img.path));
+
+  state.products = state.products.filter((x) => x.id !== p.id);
+  state.selectedId = null;
+  renderFilterOptions();
+  renderList();
+  $("#editor").innerHTML = '<p class="status">Producto eliminado. Elige otro producto de la lista.</p>';
+  leaveEditor();
 }
 
 $("#editor").addEventListener("click", async (e) => {

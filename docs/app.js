@@ -26,7 +26,7 @@ function fillStoreInfo() {
 
 async function loadProducts() {
   const params = new URLSearchParams({
-    select: "id,name,category,stock,product_images(path,sort_order)",
+    select: "id,name,category,stock,description,product_images(path,sort_order)",
     active: "eq.true",
     stock: "gt.0",
     order: "name.asc",
@@ -143,6 +143,8 @@ function openViewer(product) {
   current = { product, index: 0 };
   const { images } = product;
   $("#viewer-title").textContent = product.name;
+  $("#viewer-description").textContent = product.description || "";
+  $("#viewer-description").hidden = !product.description;
   $("#viewer-category").innerHTML = categoryIcon(product.categoryKey) + escapeHtml(product.categoryLabel);
   $("#viewer-whatsapp").href = whatsappLink(`Hola, me interesa: ${product.name}. ¿Precio y disponibilidad?`);
   $("#gallery").innerHTML = images.length
