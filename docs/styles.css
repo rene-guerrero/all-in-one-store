@@ -259,9 +259,9 @@ dialog.viewer::backdrop { background: rgb(5 10 15 / 70%); }
 .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
 .panel-head { padding: 12px; border-bottom: 1px solid var(--border); display: grid; gap: 6px; }
 .filter-line { display: flex; gap: 8px; }
-.filter-line .search { flex: 1; width: 0; min-width: 0; }
+.filter-line .select { flex: 1; min-width: 0; width: 0; padding: 9px 8px; font-size: 0.86rem; }
+.filter-line .select.active { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); }
 .admin-layout > * { min-width: 0; }
-.filter-line .select { flex: none; padding-block: 10px; }
 .product-list { list-style: none; margin: 0; padding: 6px; max-height: 72vh; overflow: auto; }
 .product-list button {
   width: 100%; display: flex; align-items: center; gap: 12px; padding: 8px 10px; border: none; border-radius: 10px;
@@ -270,6 +270,9 @@ dialog.viewer::backdrop { background: rgb(5 10 15 / 70%); }
 .product-list button:hover { background: var(--surface-2); }
 .product-list button[aria-current="true"] { background: var(--brand-soft); }
 .product-list .mini { width: 44px; height: 44px; border-radius: 9px; flex: none; background: var(--surface-2); object-fit: cover; }
+.mini-icon { display: grid; place-items: center; color: var(--muted); }
+.mini-icon svg { width: 58%; height: 58%; opacity: 0.7; }
+.empty-icon { width: 40px; height: 40px; border-radius: 10px; background: var(--surface-2); flex: none; }
 .product-list .meta { min-width: 0; flex: 1; }
 .product-list .meta div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
 .product-list .meta small { color: var(--muted); }
@@ -303,7 +306,7 @@ dialog.viewer::backdrop { background: rgb(5 10 15 / 70%); }
 .upload-queue .done .state { color: var(--accent); }
 .upload-queue .error .state { color: var(--danger); white-space: normal; text-align: right; max-width: 55%; }
 
-.photos-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.photos-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
 .photos-head small { color: var(--muted); }
 .image-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
 .image-tile { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface-2); }

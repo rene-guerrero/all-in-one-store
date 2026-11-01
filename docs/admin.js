@@ -121,15 +121,42 @@ async function loadProducts() {
   state.products = data.filter((p) => p.active).map((p) => ({
     ...p,
     product_images: p.product_images.sort((a, b) => a.sort_order - b.sort_order),
+    brand: brandOf(p.name),
+    categoryKey: fold(p.category).trim() || "otros",
   }));
+  renderFilterOptions();
   renderList();
+}
+
+function renderFilterOptions() {
+  const categories = {};
+  for (const p of state.products) {
+    const label = (p.category || "Otros").trim();
+    const hasAccent = /[̀-ͯ]/.test(label.normalize("NFD"));
+    const entry = (categories[p.categoryKey] ??= { label, count: 0 });
+    if (hasAccent) entry.label = label;
+    entry.count++;
+  }
+  $("#filter-category").innerHTML = '<option value="">Categoría</option>' +
+    Object.entries(categories).sort((a, b) => b[1].count - a[1].count)
+      .map(([key, c]) => `<option value="${escapeHtml(key)}">${escapeHtml(c.label)} (${c.count})</option>`).join("");
+
+  const brands = {};
+  for (const p of state.products) if (p.brand) brands[p.brand] = (brands[p.brand] || 0) + 1;
+  $("#filter-brand").innerHTML = '<option value="">Marca</option>' +
+    Object.keys(brands).sort().map((b) => `<option>${escapeHtml(b)}</option>`).join("");
 }
 
 function renderList() {
   const query = fold($("#filter").value).trim();
+  const brand = $("#filter-brand").value;
+  const category = $("#filter-category").value;
   const imagesFilter = $("#filter-images").value;
+  ["#filter-brand", "#filter-category", "#filter-images"].forEach((sel) => $(sel).classList.toggle("active", !!$(sel).value));
   const list = state.products.filter((p) =>
     (!query || fold(`${p.name} ${p.category}`).includes(query)) &&
+    (!brand || p.brand === brand) &&
+    (!category || p.categoryKey === category) &&
     (imagesFilter !== "none" || p.product_images.length === 0) &&
     (imagesFilter !== "some" || p.product_images.length > 0));
   const withImages = state.products.filter((p) => p.product_images.length).length;
@@ -137,7 +164,7 @@ function renderList() {
   $("#products").innerHTML = list.map((p) => {
     const first = p.product_images[0];
     return `<li><button data-id="${p.id}" aria-current="${p.id === state.selectedId}">
-      ${first ? `<img class="mini" src="${escapeHtml(publicUrl(first.path))}" alt="" loading="lazy">` : '<span class="mini"></span>'}
+      ${first ? `<img class="mini" src="${escapeHtml(publicUrl(first.path))}" alt="" loading="lazy">` : `<span class="mini mini-icon">${categoryIcon(fold(p.category).trim())}</span>`}
       <span class="meta"><div>${escapeHtml(p.name)}</div><small>${escapeHtml(p.category || "")} · stock ${p.stock}${p.hidden ? " · oculto" : ""}</small></span>
       <span class="tag ${p.product_images.length ? "ok" : ""}">${p.product_images.length} ${p.product_images.length === 1 ? "foto" : "fotos"}</span>
     </button></li>`;
@@ -145,7 +172,7 @@ function renderList() {
 }
 
 $("#filter").addEventListener("input", renderList);
-$("#filter-images").addEventListener("change", renderList);
+["#filter-brand", "#filter-category", "#filter-images"].forEach((sel) => $(sel).addEventListener("change", renderList));
 $("#products").addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-id]");
   if (!btn) return;
@@ -202,6 +229,7 @@ function renderEditor() {
     </div>
     <ul class="upload-queue" id="upload-queue"></ul>
     <div class="photos-head">
+      ${images.length ? "" : `<span class="mini-icon empty-icon">${categoryIcon(fold(p.category).trim())}</span>`}
       <strong>${images.length ? `${images.length} ${images.length === 1 ? "foto" : "fotos"}` : "Sin fotos todavía"}</strong>
       ${images.length > 1 ? "<small>La primera es la portada. Usa ◀ ▶ para ordenar.</small>" : ""}
     </div>

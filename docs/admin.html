@@ -8,11 +8,12 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=555333">
-  <script src="theme.js?v=555333"></script>
-  <script src="config.js?v=555333"></script>
+  <link rel="stylesheet" href="styles.css?v=555488">
+  <script src="theme.js?v=555488"></script>
+  <script src="config.js?v=555488"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-  <script src="admin.js?v=555333" defer></script>
+  <script src="catalog.js?v=555488"></script>
+  <script src="admin.js?v=555488" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -53,10 +54,12 @@
     <div class="admin-layout" id="admin-layout">
       <section class="panel list-panel">
         <div class="panel-head">
+          <input id="filter" class="search" type="search" placeholder="Buscar producto…" autocomplete="off">
           <div class="filter-line">
-            <input id="filter" class="search" type="search" placeholder="Buscar producto…" autocomplete="off">
+            <select id="filter-brand" class="select" aria-label="Filtrar por marca"><option value="">Marca</option></select>
+            <select id="filter-category" class="select" aria-label="Filtrar por categoría"><option value="">Categoría</option></select>
             <select id="filter-images" class="select" aria-label="Filtrar por fotos">
-              <option value="">Todos</option>
+              <option value="">Fotos</option>
               <option value="none">Sin fotos</option>
               <option value="some">Con fotos</option>
             </select>
