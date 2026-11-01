@@ -5,3 +5,9 @@ node_modules/
 supabase/.temp/
 supabase/.branches/
 /feria-post1-img*.jpg
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example

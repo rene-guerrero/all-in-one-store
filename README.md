@@ -1,6 +1,6 @@
 # All in One · Catálogo
 
-Static store catalog hosted on GitHub Pages (`docs/`), backed by Supabase.
+Static store catalog hosted on Cloudflare Pages (https://allinone-holguin.pages.dev, deployed from `docs/`), backed by Supabase.
 
 - `docs/index.html`: public catalog (no prices, sold-out products hidden).
 - `docs/admin.html`: admin page to upload/reorder/delete product photos (Supabase Auth, admins only).
@@ -18,6 +18,7 @@ Local copies live in the gitignored `.env`.
 ```bash
 npx supabase functions deploy sync-products --use-api   # redeploy the sync
 npx supabase db push                                    # apply new migrations
+npx wrangler pages deploy docs --project-name allinone-holguin --branch main   # publish the site
 ```
 
 Run a sync now: `POST https://<ref>.supabase.co/functions/v1/sync-products` with header `x-cron-secret`.
