@@ -28,6 +28,7 @@ const CATEGORY_ICONS = {
 };
 const DEFAULT_CATEGORY_ICON = svg('<path d="M3 8l9-5 9 5v8l-9 5-9-5zM3 8l9 5 9-5M12 13v8"/>');
 const categoryIcon = (key) => CATEGORY_ICONS[key] || DEFAULT_CATEGORY_ICON;
+const ALL_ICON = svg('<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>');
 
 const state = { products: [], category: "", brand: "", query: "" };
 const $ = (sel) => document.querySelector(sel);
@@ -92,13 +93,22 @@ function renderFilters() {
     labels[p.categoryKey] = p.categoryLabel;
   }
   const keys = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
-  const chip = (key, label, count) =>
-    `<button class="chip" data-category="${escapeHtml(key)}" aria-pressed="${state.category === key}">${escapeHtml(label)}<span class="count">${count}</span></button>`;
-  $("#categories").innerHTML = chip("", "Todo", state.products.length) + keys.map((k) => chip(k, labels[k], counts[k])).join("");
+  const chip = (key, icon, label, count) =>
+    `<button class="chip" data-category="${escapeHtml(key)}" aria-pressed="${state.category === key}">${icon}${escapeHtml(label)}<span class="count">${count}</span></button>`;
+  $("#categories").innerHTML = chip("", ALL_ICON, "Todo", state.products.length) +
+    keys.map((k) => chip(k, categoryIcon(k), labels[k], counts[k])).join("");
+  updateChipFade();
 
   const brands = [...new Set(state.products.map((p) => p.brand).filter(Boolean))].sort();
-  $("#brand").innerHTML = '<option value="">Todas las marcas</option>' +
+  $("#brand").innerHTML = '<option value="">Marca</option>' +
     brands.map((b) => `<option ${b === state.brand ? "selected" : ""}>${escapeHtml(b)}</option>`).join("");
+}
+
+// Fade whichever edge of the chip row has more chips hidden behind it.
+function updateChipFade() {
+  const row = $("#categories");
+  row.classList.toggle("fade-start", row.scrollLeft > 4);
+  row.classList.toggle("fade-end", row.scrollLeft + row.clientWidth < row.scrollWidth - 4);
 }
 
 function filtered() {
@@ -163,12 +173,19 @@ function openViewer(product) {
 
 function bindEvents() {
   $("#search").addEventListener("input", (e) => { state.query = e.target.value; renderGrid(); });
-  $("#brand").addEventListener("change", (e) => { state.brand = e.target.value; renderGrid(); });
+  $("#brand").addEventListener("change", (e) => {
+    state.brand = e.target.value;
+    $("#brand-chip").classList.toggle("active", !!state.brand);
+    renderGrid();
+  });
+  $("#categories").addEventListener("scroll", updateChipFade, { passive: true });
+  window.addEventListener("resize", updateChipFade);
   $("#categories").addEventListener("click", (e) => {
     const chip = e.target.closest(".chip");
     if (!chip) return;
     state.category = chip.dataset.category;
     $("#categories").querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-pressed", c === chip));
+    chip.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
     renderGrid();
   });
   $("#grid").addEventListener("click", (e) => {

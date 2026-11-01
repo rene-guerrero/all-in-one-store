@@ -122,22 +122,42 @@ a { color: var(--brand); }
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border);
 }
-.toolbar .wrap { padding-block: 12px; display: grid; gap: 10px; }
-.toolbar-row { display: flex; gap: 10px; align-items: center; }
+.toolbar .wrap { padding-block: 10px; display: grid; gap: 8px; }
 .search {
-  flex: 1; min-width: 0; padding: 11px 14px; border-radius: 12px;
+  width: 100%; min-width: 0; padding: 10px 14px; border-radius: 12px;
   border: 1px solid var(--border); background: var(--surface);
 }
-.search:focus, .select:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
+.search:focus, .select:focus, .brand-chip select:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 .select { padding: 11px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
-.chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+
+/* Brand picker styled as a chip, followed by a horizontally scrolling row of category chips. */
+.filter-row { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.brand-chip { position: relative; flex: none; display: inline-flex; }
+.brand-chip select {
+  appearance: none; -webkit-appearance: none; cursor: pointer;
+  padding: 7px 30px 7px 14px; border-radius: 999px; max-width: 150px; text-overflow: ellipsis;
+  border: 1px solid var(--border); background: var(--surface); font-size: 0.88rem; font-weight: 600;
+}
+.brand-chip svg { position: absolute; right: 10px; top: 50%; translate: 0 -50%; width: 14px; height: 14px; pointer-events: none; }
+.brand-chip.active select { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
+.brand-chip.active svg { color: var(--brand); }
+.chips {
+  flex: 1; min-width: 0; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none;
+  scroll-snap-type: x proximity; scroll-padding-inline: 8px; padding-block: 1px;
+}
 .chips::-webkit-scrollbar { display: none; }
+.chips.fade-end { mask-image: linear-gradient(to right, #000 82%, transparent); }
+.chips.fade-start { mask-image: linear-gradient(to right, transparent, #000 14%); }
+.chips.fade-start.fade-end { mask-image: linear-gradient(to right, transparent, #000 14%, #000 82%, transparent); }
 .chip {
-  flex: none; padding: 7px 14px; border-radius: 999px; cursor: pointer;
+  flex: none; scroll-snap-align: start; display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 999px; cursor: pointer;
   border: 1px solid var(--border); background: var(--surface); font-size: 0.88rem; font-weight: 500;
 }
+.chip svg { width: 15px; height: 15px; flex: none; opacity: 0.8; }
 .chip[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
-.chip .count { opacity: 0.7; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.chip[aria-pressed="true"] svg { opacity: 1; }
+.chip .count { opacity: 0.7; font-variant-numeric: tabular-nums; }
 
 /* Grid */
 main { padding-block: 20px 40px; }
@@ -223,9 +243,10 @@ dialog.viewer::backdrop { background: rgb(5 10 15 / 70%); }
   .brand-sub p { display: none; }
   .header-actions .btn-whatsapp { width: 36px; height: 36px; padding: 0; }
   .header-actions .btn-whatsapp .label { display: none; }
-  .toolbar-row { flex-wrap: wrap; }
-  .toolbar-row .search { flex-basis: 100%; }
-  .toolbar-row .select { flex: 1; }
+  .toolbar .wrap { padding-block: 8px; gap: 8px; }
+  .chip, .brand-chip select { font-size: 0.82rem; padding-block: 6px; }
+  .chip { padding-inline: 11px; gap: 5px; }
+  .brand-chip select { padding-left: 12px; max-width: 120px; }
 }
 
 /* Admin */

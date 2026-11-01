@@ -43,13 +43,16 @@
 
   <div class="toolbar">
     <div class="wrap">
-      <div class="toolbar-row">
-        <label class="sr-only" for="search">Buscar</label>
-        <input id="search" class="search" type="search" placeholder="Buscar modelo, ej. Samsung A15, iPhone 13…" autocomplete="off">
-        <label class="sr-only" for="brand">Marca</label>
-        <select id="brand" class="select"><option value="">Todas las marcas</option></select>
+      <label class="sr-only" for="search">Buscar</label>
+      <input id="search" class="search" type="search" placeholder="Buscar modelo, ej. Samsung A15, iPhone 13…" autocomplete="off">
+      <div class="filter-row">
+        <span class="brand-chip" id="brand-chip">
+          <label class="sr-only" for="brand">Marca</label>
+          <select id="brand"><option value="">Marca</option></select>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </span>
+        <div class="chips" id="categories" role="group" aria-label="Categorías"></div>
       </div>
-      <div class="chips" id="categories" role="group" aria-label="Categorías"></div>
     </div>
   </div>
 
