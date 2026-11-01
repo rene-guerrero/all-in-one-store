@@ -11,3 +11,5 @@ supabase/.branches/
 .dev.vars*
 !.dev.vars.example
 !.env.example
+.venv-ocr/
+scraped/

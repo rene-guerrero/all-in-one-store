@@ -8,7 +8,17 @@ const ICONS = {
 
 const ALL_ICON = svg('<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>');
 
-const state = { products: [], category: "", brand: "", query: "" };
+// Empty sets mean "all"; several brands or categories mean "any of these".
+const state = { products: [], categories: new Set(), brands: new Set(), query: "", sort: "novedades" };
+const brandFilter = createMultiSelect(document.getElementById("brand-ms"), {
+  label: "Marca",
+  onChange: (values) => { state.brands = values; renderGrid(); },
+});
+const categoryFilter = createMultiSelect(document.getElementById("category-ms"), {
+  label: "Categoría",
+  onChange: (values) => setCategories(values),
+});
+const NEW_DAYS = 14;
 const $ = (sel) => document.querySelector(sel);
 
 const fold = (s) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
@@ -26,16 +36,20 @@ function fillStoreInfo() {
 
 async function loadProducts() {
   const params = new URLSearchParams({
-    select: "id,name,category,stock,description,product_images(path,sort_order)",
+    select: "id,name,category,stock,description,fresh_at,created_at,source_created_at,product_images(path,thumb_path,sort_order)",
     active: "eq.true",
     stock: "gt.0",
-    order: "name.asc",
+    order: "fresh_at.desc",
   });
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/products?${params}`, {
-    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-  });
+  const headers = { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` };
+  const [res, catRes] = await Promise.all([
+    fetch(`${SUPABASE_URL}/rest/v1/products?${params}`, { headers }),
+    fetch(`${SUPABASE_URL}/rest/v1/categories?select=name,icon&icon=not.is.null`, { headers }),
+  ]);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const rows = await res.json();
+  // Icons admins chose for their own categories; a failure here just keeps the default icons.
+  if (catRes.ok) setCategoryIconChoices(await catRes.json());
 
   // "Audifonos" and "Audífonos" are the same category; keep the accented spelling.
   const categoryLabels = {};
@@ -47,18 +61,30 @@ async function loadProducts() {
   }
 
   return rows.map((p) => {
-    const images = (p.product_images || []).sort((a, b) => a.sort_order - b.sort_order).map((i) => IMAGE_BASE + i.path);
+    const photos = (p.product_images || []).sort((a, b) => a.sort_order - b.sort_order);
+    const images = photos.map((i) => IMAGE_BASE + i.path);
+    const thumbs = photos.map((i) => IMAGE_BASE + (i.thumb_path || i.path));
     const categoryKey = fold(p.category) || "otros";
+    const addedAt = new Date(p.source_created_at || p.created_at).getTime();
     return {
       ...p,
       images,
+      thumbs,
       categoryKey,
       categoryLabel: categoryLabels[categoryKey],
       brand: brandOf(p.name),
       search: fold(`${p.name} ${p.category}`),
+      freshAt: new Date(p.fresh_at).getTime(),
+      isNew: Date.now() - addedAt < NEW_DAYS * 864e5,
     };
-  }).sort((a, b) => (b.images.length > 0) - (a.images.length > 0) || a.name.localeCompare(b.name, "es"));
+  });
 }
+
+// "Novedades": newest additions, restocks and edits first (fresh_at, kept by the database).
+const SORTS = {
+  novedades: (a, b) => b.freshAt - a.freshAt || a.name.localeCompare(b.name, "es"),
+  az: (a, b) => a.name.localeCompare(b.name, "es", { numeric: true }),
+};
 
 function renderFilters() {
   const counts = {};
@@ -69,26 +95,30 @@ function renderFilters() {
   }
   const keys = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
   const chip = (key, icon, label, count) =>
-    `<button class="chip" data-category="${escapeHtml(key)}" aria-pressed="${state.category === key}">${icon}${escapeHtml(label)}<span class="count">${count}</span></button>`;
+    `<button class="chip" data-category="${escapeHtml(key)}">${icon}${escapeHtml(label)}<span class="count">${count}</span></button>`;
   $("#categories").innerHTML = chip("", ALL_ICON, "Todo", state.products.length) +
     keys.map((k) => chip(k, categoryIcon(k), labels[k], counts[k])).join("");
+  syncChips();
   updateChipFade();
 
-  $("#category").innerHTML = `<option value="">Categorías (${state.products.length})</option>` +
-    keys.map((k) => `<option value="${escapeHtml(k)}" ${k === state.category ? "selected" : ""}>${escapeHtml(labels[k])} (${counts[k]})</option>`).join("");
+  categoryFilter.setOptions(keys.map((k) => ({ value: k, label: labels[k], count: counts[k], icon: categoryIcon(k) })));
 
-  const brands =[...new Set(state.products.map((p) => p.brand).filter(Boolean))].sort();
-  $("#brand").innerHTML = '<option value="">Marca</option>' +
-    brands.map((b) => `<option ${b === state.brand ? "selected" : ""}>${escapeHtml(b)}</option>`).join("");
+  const brandCounts = {};
+  for (const p of state.products) if (p.brand) brandCounts[p.brand] = (brandCounts[p.brand] || 0) + 1;
+  brandFilter.setOptions(Object.keys(brandCounts).sort().map((b) => ({ value: b, label: b, count: brandCounts[b] })));
 }
 
-// Category chips (desktop) and the category dropdown (phones) stay in sync.
-function setCategory(key) {
-  state.category = key;
-  $("#categories").querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-pressed", c.dataset.category === key));
-  $("#category").value = key;
-  $("#category-chip").classList.toggle("active", !!key);
+// Category chips (desktop) and the category dropdown (phones) share state.categories.
+function setCategories(keys) {
+  state.categories = new Set(keys);
+  categoryFilter.setSelected(state.categories);
+  syncChips();
   renderGrid();
+}
+
+function syncChips() {
+  $("#categories").querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-pressed",
+    c.dataset.category ? state.categories.has(c.dataset.category) : state.categories.size === 0));
 }
 
 // Fade whichever edge of the chip row has more chips hidden behind it.
@@ -101,18 +131,19 @@ function updateChipFade() {
 function filtered() {
   const terms = fold(state.query).split(/\s+/).filter(Boolean);
   return state.products.filter((p) =>
-    (!state.category || p.categoryKey === state.category) &&
-    (!state.brand || p.brand === state.brand) &&
-    terms.every((t) => p.search.includes(t)));
+    (!state.categories.size || state.categories.has(p.categoryKey)) &&
+    (!state.brands.size || state.brands.has(p.brand)) &&
+    terms.every((t) => p.search.includes(t)))
+    .sort(SORTS[state.sort] || SORTS.novedades);
 }
 
 function cardHtml(p) {
   const media = p.images.length
-    ? `<img src="${escapeHtml(p.images[0])}" alt="${escapeHtml(p.name)}" loading="lazy">` +
+    ? `<img src="${escapeHtml(p.thumbs[0])}" alt="${escapeHtml(p.name)}" loading="lazy">` +
       (p.images.length > 1 ? `<span class="photo-count">${ICONS.photos}${p.images.length}</span>` : "")
     : `<div class="placeholder">${categoryIcon(p.categoryKey)}</div>`;
   return `<button class="card" data-id="${p.id}">
-    <div class="card-media">${media}</div>
+    <div class="card-media">${media}${p.isNew ? '<span class="badge-new">Nuevo</span>' : ""}</div>
     <div class="card-body">
       <span class="card-category">${categoryIcon(p.categoryKey)}${escapeHtml(p.categoryLabel)}</span>
       <span class="card-name">${escapeHtml(p.name)}</span>
@@ -153,7 +184,7 @@ function openViewer(product) {
       : "")
     : `<div class="placeholder">${categoryIcon(product.categoryKey)}</div>`;
   $("#thumbs").innerHTML = images.length > 1
-    ? images.map((src, i) => `<button data-index="${i}" aria-label="Foto ${i + 1}"><img src="${escapeHtml(src)}" alt="" loading="lazy"></button>`).join("")
+    ? product.thumbs.map((src, i) => `<button data-index="${i}" aria-label="Foto ${i + 1}"><img src="${escapeHtml(src)}" alt="" loading="lazy"></button>`).join("")
     : "";
   $("#thumbs").hidden = images.length < 2;
   if (images.length) showImage(0);
@@ -162,18 +193,19 @@ function openViewer(product) {
 
 function bindEvents() {
   $("#search").addEventListener("input", (e) => { state.query = e.target.value; renderGrid(); });
-  $("#brand").addEventListener("change", (e) => {
-    state.brand = e.target.value;
-    $("#brand-chip").classList.toggle("active", !!state.brand);
-    renderGrid();
-  });
+  $("#sort").addEventListener("change", (e) => { state.sort = e.target.value; renderGrid(); });
   $("#categories").addEventListener("scroll", updateChipFade, { passive: true });
   window.addEventListener("resize", updateChipFade);
-  $("#category").addEventListener("change", (e) => setCategory(e.target.value));
+  // Chips toggle on and off so several categories can be combined; "Todo" clears them.
   $("#categories").addEventListener("click", (e) => {
     const chip = e.target.closest(".chip");
     if (!chip) return;
-    setCategory(chip.dataset.category);
+    const key = chip.dataset.category;
+    const next = new Set(state.categories);
+    if (!key) next.clear();
+    else if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setCategories(next);
     chip.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
   });
   $("#grid").addEventListener("click", (e) => {

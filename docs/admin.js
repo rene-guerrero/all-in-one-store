@@ -1,7 +1,8 @@
 const { SUPABASE_URL, SUPABASE_ANON_KEY } = window.STORE_CONFIG;
 const BUCKET = "product-images";
-const MAX_SIDE = 1600;
-const JPEG_QUALITY = 0.85;
+// Every photo is stored twice: FULL for the product viewer, THUMB for list/grid cards.
+const FULL = { side: 1200, quality: 0.8 };
+const THUMB = { side: 480, quality: 0.75 };
 
 // Invite and password-reset emails land here with #...&type=invite|recovery; read it before
 // supabase-js consumes the hash.
@@ -42,7 +43,8 @@ async function showForSession(session) {
     return;
   }
   $("#app").hidden = false;
-  await loadProducts();
+  await Promise.all([loadCategories(), loadProducts()]);
+  renderCategories();
 }
 
 $("#login").addEventListener("submit", async (e) => {
@@ -133,8 +135,10 @@ function decorate(p) {
   };
 }
 
+const brandFilter = createMultiSelect($("#brand-ms"), { label: "Marca", onChange: () => renderList() });
+const categoryFilter = createMultiSelect($("#category-ms"), { label: "Categoría", onChange: () => renderList() });
+
 function renderFilterOptions() {
-  const kept = ["#filter-brand", "#filter-category"].map((sel) => [sel, $(sel).value]);
   const categories = {};
   for (const p of state.products) {
     const label = (p.category || "Otros").trim();
@@ -143,29 +147,25 @@ function renderFilterOptions() {
     if (hasAccent) entry.label = label;
     entry.count++;
   }
-  $("#filter-category").innerHTML = '<option value="">Categoría</option>' +
-    Object.entries(categories).sort((a, b) => b[1].count - a[1].count)
-      .map(([key, c]) => `<option value="${escapeHtml(key)}">${escapeHtml(c.label)} (${c.count})</option>`).join("");
+  categoryFilter.setOptions(Object.entries(categories).sort((a, b) => b[1].count - a[1].count)
+    .map(([key, c]) => ({ value: key, label: c.label, count: c.count, icon: categoryIcon(key) })));
 
   const brands = {};
   for (const p of state.products) if (p.brand) brands[p.brand] = (brands[p.brand] || 0) + 1;
-  $("#filter-brand").innerHTML = '<option value="">Marca</option>' +
-    Object.keys(brands).sort().map((b) => `<option>${escapeHtml(b)}</option>`).join("");
-
-  $("#category-options").innerHTML = Object.values(categories).map((c) => `<option value="${escapeHtml(c.label)}">`).join("");
-  for (const [sel, value] of kept) if ([...$(sel).options].some((o) => o.value === value)) $(sel).value = value;
+  brandFilter.setOptions(Object.keys(brands).sort().map((b) => ({ value: b, label: b, count: brands[b] })));
 }
 
 function renderList() {
   const query = fold($("#filter").value).trim();
-  const brand = $("#filter-brand").value;
-  const category = $("#filter-category").value;
+  const brands = brandFilter.selected;
+  const categories = categoryFilter.selected;
   const imagesFilter = $("#filter-images").value;
-  ["#filter-brand", "#filter-category", "#filter-images"].forEach((sel) => $(sel).classList.toggle("active", !!$(sel).value));
+  $("#filter-images").classList.toggle("active", !!imagesFilter);
+  $('[data-clear="filter-images"]').hidden = !imagesFilter;
   const list = state.products.filter((p) =>
     (!query || fold(`${p.name} ${p.category}`).includes(query)) &&
-    (!brand || p.brand === brand) &&
-    (!category || p.categoryKey === category) &&
+    (!brands.size || brands.has(p.brand)) &&
+    (!categories.size || categories.has(p.categoryKey)) &&
     (imagesFilter !== "none" || p.product_images.length === 0) &&
     (imagesFilter !== "some" || p.product_images.length > 0));
   const withImages = state.products.filter((p) => p.product_images.length).length;
@@ -173,7 +173,7 @@ function renderList() {
   $("#products").innerHTML = list.map((p) => {
     const first = p.product_images[0];
     return `<li><button data-id="${p.id}" aria-current="${p.id === state.selectedId}">
-      ${first ? `<img class="mini" src="${escapeHtml(publicUrl(first.path))}" alt="" loading="lazy">` : `<span class="mini mini-icon">${categoryIcon(fold(p.category).trim())}</span>`}
+      ${first ? `<img class="mini" src="${escapeHtml(publicUrl(first.thumb_path || first.path))}" alt="" loading="lazy">` : `<span class="mini mini-icon">${categoryIcon(fold(p.category).trim())}</span>`}
       <span class="meta"><div>${escapeHtml(p.name)}</div><small>${escapeHtml(p.category || "")} · stock ${p.stock}${p.hidden ? " · oculto" : ""}${p.source === "manual" ? " · manual" : ""}</small></span>
       <span class="tag ${p.product_images.length ? "ok" : ""}">${p.product_images.length} ${p.product_images.length === 1 ? "foto" : "fotos"}</span>
     </button></li>`;
@@ -181,7 +181,11 @@ function renderList() {
 }
 
 $("#filter").addEventListener("input", renderList);
-["#filter-brand", "#filter-category", "#filter-images"].forEach((sel) => $(sel).addEventListener("change", renderList));
+$("#filter-images").addEventListener("change", renderList);
+document.querySelectorAll("[data-clear]").forEach((btn) => btn.addEventListener("click", () => {
+  $(`#${btn.dataset.clear}`).value = "";
+  renderList();
+}));
 $("#products").addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-id]");
   if (!btn) return;
@@ -215,9 +219,162 @@ function closeEditor() {
 
 window.addEventListener("popstate", closeEditor);
 
+/* Categories: 'feria' ones come from feria-ventas and are read-only (also enforced in the database). */
+async function loadCategories() {
+  const { data, error } = await sb.from("categories").select("id,name,source,icon").order("name");
+  if (error) {
+    $("#category-status").textContent = `Error: ${error.message}`;
+    return;
+  }
+  state.categories = data;
+  setCategoryIconChoices(data);
+}
+
+/* Icon picker: one icon per category, chosen from ICON_LIBRARY (catalog.js). */
+let iconPicked = null;
+function pickIcon(current) {
+  return new Promise((resolve) => {
+    const dialog = $("#icon-picker");
+    const render = () => {
+      const q = fold($("#icon-search").value).trim();
+      $("#icon-grid").innerHTML = ICON_LIBRARY
+        .filter((i) => !q || fold(`${i.label} ${i.key}`).includes(q))
+        .map((i) => `<button type="button" data-icon="${i.key}" aria-pressed="${i.key === current}" title="${escapeHtml(i.label)}">${i.icon}<span>${escapeHtml(i.label)}</span></button>`)
+        .join("") || '<p class="status">Sin resultados.</p>';
+    };
+    iconPicked = (key) => { iconPicked = null; dialog.close(); resolve(key); };
+    $("#icon-search").value = "";
+    render();
+    $("#icon-search").oninput = render;
+    dialog.onclose = () => { if (iconPicked) { iconPicked = null; resolve(null); } };
+    dialog.showModal();
+  });
+}
+$("#icon-grid").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-icon]");
+  if (b && iconPicked) iconPicked(b.dataset.icon);
+});
+$("#icon-picker-close").addEventListener("click", () => $("#icon-picker").close());
+
+function showNewCategoryIcon() {
+  const btn = $("#new-category-icon");
+  btn.innerHTML = ICONS_BY_KEY[btn.dataset.icon] || DEFAULT_CATEGORY_ICON;
+}
+showNewCategoryIcon();
+$("#new-category-icon").addEventListener("click", async () => {
+  const key = await pickIcon($("#new-category-icon").dataset.icon);
+  if (!key) return;
+  $("#new-category-icon").dataset.icon = key;
+  showNewCategoryIcon();
+});
+
+function categoryOptionsHtml(current) {
+  const names = (state.categories || []).map((c) => c.name);
+  // Keep a product's current value selectable even if it isn't in the list (e.g. renamed source data).
+  if (current && !names.some((n) => fold(n).trim() === fold(current).trim())) names.unshift(current);
+  const selected = (n) => current && fold(n).trim() === fold(current).trim() ? "selected" : "";
+  return '<option value="">Sin categoría</option>' +
+    names.map((n) => `<option value="${escapeHtml(n)}" ${selected(n)}>${escapeHtml(n)}</option>`).join("");
+}
+
+function renderCategories() {
+  const counts = {};
+  for (const p of state.products) counts[p.categoryKey] = (counts[p.categoryKey] || 0) + 1;
+  $("#category-list").innerHTML = (state.categories || []).map((c) => {
+    const key = fold(c.name).trim();
+    const count = counts[key] || 0;
+    const readOnly = c.source === "feria";
+    return `<li data-category-id="${c.id}">
+      ${readOnly
+        ? `<span class="mini mini-icon">${categoryIcon(key)}</span>`
+        : `<button type="button" class="mini mini-icon icon-choice" data-change-icon="${c.id}" aria-label="Cambiar ícono" title="Cambiar ícono">${categoryIcon(key)}</button>`}
+      <span class="meta">
+        ${readOnly ? `<div>${escapeHtml(c.name)}</div>` : `<input class="category-name" value="${escapeHtml(c.name)}" maxlength="60" aria-label="Nombre de la categoría">`}
+        <small>${count} ${count === 1 ? "producto" : "productos"}</small>
+      </span>
+      ${readOnly
+        ? '<span class="tag">SoftCell · solo lectura</span>'
+        : `<span class="category-actions">
+            <button class="btn btn-sm" type="button" data-rename="${c.id}">Guardar</button>
+            <button class="btn btn-sm btn-danger" type="button" data-remove="${c.id}" ${count ? 'title="Tiene productos"' : ""}>Eliminar</button>
+          </span>`}
+    </li>`;
+  }).join("");
+}
+
+function setCategoryStatus(message, isError = false) {
+  $("#category-status").textContent = message;
+  $("#category-status").classList.toggle("error", isError);
+}
+
+const friendlyCategoryError = (error) =>
+  error.code === "23505" ? "Ya existe una categoría con ese nombre." : error.message;
+
+async function afterCategoryChange() {
+  await Promise.all([loadCategories(), loadProducts()]);
+  renderCategories();
+}
+
+$("#category-add").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const name = $("#new-category").value.trim();
+  if (!name) return;
+  const icon = $("#new-category-icon").dataset.icon;
+  const { error } = await sb.from("categories").insert({ name, source: "manual", icon });
+  if (error) return setCategoryStatus(`No se pudo crear: ${friendlyCategoryError(error)}`, true);
+  $("#new-category").value = "";
+  $("#new-category-icon").dataset.icon = "otros";
+  showNewCategoryIcon();
+  await afterCategoryChange();
+  setCategoryStatus(`Categoría "${name}" creada.`);
+});
+
+$("#category-list").addEventListener("click", async (e) => {
+  const rename = e.target.closest("[data-rename]");
+  const remove = e.target.closest("[data-remove]");
+  const changeIcon = e.target.closest("[data-change-icon]");
+  if (changeIcon) {
+    const c = state.categories.find((x) => x.id === changeIcon.dataset.changeIcon);
+    const icon = await pickIcon(c.icon || "otros");
+    if (!icon || icon === c.icon) return;
+    const { error } = await sb.from("categories").update({ icon }).eq("id", c.id);
+    if (error) return setCategoryStatus(`No se pudo cambiar el ícono: ${error.message}`, true);
+    await afterCategoryChange();
+    setCategoryStatus(`Ícono de "${c.name}" actualizado.`);
+  }
+  if (rename) {
+    const id = rename.dataset.rename;
+    const input = $(`[data-category-id="${id}"] .category-name`);
+    const name = input.value.trim();
+    if (!name) return setCategoryStatus("El nombre no puede estar vacío.", true);
+    const { error } = await sb.from("categories").update({ name }).eq("id", id);
+    if (error) return setCategoryStatus(`No se pudo renombrar: ${friendlyCategoryError(error)}`, true);
+    await afterCategoryChange();
+    setCategoryStatus(`Categoría renombrada a "${name}". Sus productos se actualizaron.`);
+  }
+  if (remove) {
+    const c = state.categories.find((x) => x.id === remove.dataset.remove);
+    if (!c || !confirm(`¿Eliminar la categoría "${c.name}"?`)) return;
+    const { error } = await sb.from("categories").delete().eq("id", c.id);
+    if (error) return setCategoryStatus(error.message, true);
+    await afterCategoryChange();
+    setCategoryStatus(`Categoría "${c.name}" eliminada.`);
+  }
+});
+
+document.querySelector(".admin-tabs").addEventListener("click", (e) => {
+  const tab = e.target.closest("[data-tab]");
+  if (!tab) return;
+  document.querySelectorAll(".admin-tabs [data-tab]").forEach((b) => b.setAttribute("aria-pressed", b === tab));
+  const showCategories = tab.dataset.tab === "categories";
+  $("#categories-panel").hidden = !showCategories;
+  $("#admin-layout").hidden = showCategories;
+  if (showCategories) renderCategories();
+});
+
 /* Editor */
 const NEW_ID = "new";
-const PRODUCT_FIELDS = "id,name,category,stock,active,hidden,source,description,product_images(id,path,sort_order)";
+const PRODUCT_FIELDS = "id,name,category,stock,active,hidden,source,description,product_images(id,path,thumb_path,sort_order)";
 const selected = () => (state.selectedId === NEW_ID ? state.draft : state.products.find((p) => p.id === state.selectedId));
 
 function productFormHtml(p) {
@@ -233,7 +390,7 @@ function productFormHtml(p) {
       ${p.source === "feria" ? '<p class="sync-note">Nombre, categoría y stock se actualizan cada día desde feria-ventas, así que tus cambios en esos campos se reemplazan en la próxima sincronización. Descripción y visibilidad son solo de All in One.</p>' : ""}
       <label>Nombre<input name="name" required maxlength="120" value="${escapeHtml(p.name)}" autocomplete="off"></label>
       <div class="form-row">
-        <label>Categoría<input name="category" list="category-options" maxlength="60" value="${escapeHtml(p.category || "")}" autocomplete="off"></label>
+        <label>Categoría<select name="category">${categoryOptionsHtml(p.category)}</select></label>
         <label>Stock<input name="stock" type="number" min="0" step="1" inputmode="numeric" value="${p.stock}"></label>
       </div>
       <label>Descripción<textarea name="description" rows="3" maxlength="1000" placeholder="Opcional: material, colores, compatibilidad…">${escapeHtml(p.description || "")}</textarea></label>
@@ -280,7 +437,7 @@ function renderEditor() {
       ${images.map((img, i) => `
         <div class="image-tile">
           <div class="image-wrap">
-            <img src="${escapeHtml(publicUrl(img.path))}" alt="Foto ${i + 1}" loading="lazy">
+            <img src="${escapeHtml(publicUrl(img.thumb_path || img.path))}" alt="Foto ${i + 1}" loading="lazy">
             ${i === 0 ? '<span class="cover-badge">Portada</span>' : ""}
           </div>
           <div class="actions">
@@ -383,7 +540,7 @@ async function deleteProduct() {
     return;
   }
   // Photo rows go with the product (on delete cascade); the files need removing separately.
-  if (photos) await sb.storage.from(BUCKET).remove(p.product_images.map((img) => img.path));
+  if (photos) await sb.storage.from(BUCKET).remove(p.product_images.flatMap((img) => [img.path, img.thumb_path].filter(Boolean)));
 
   state.products = state.products.filter((x) => x.id !== p.id);
   state.selectedId = null;
@@ -418,19 +575,28 @@ async function decodeImage(file) {
   }
 }
 
-async function resizeImage(file) {
-  const source = await decodeImage(file);
+async function encode(source, { side, quality }) {
   const width = source.naturalWidth || source.width;
   const height = source.naturalHeight || source.height;
-  const scale = Math.min(1, MAX_SIDE / Math.max(width, height));
+  const scale = Math.min(1, side / Math.max(width, height));
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(width * scale);
   canvas.height = Math.round(height * scale);
   canvas.getContext("2d").drawImage(source, 0, 0, canvas.width, canvas.height);
-  source.close?.();
-  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITY));
+  // Browsers that can't encode WebP (older Safari) silently return PNG; use JPEG there instead.
+  let blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/webp", quality));
+  if (!blob || blob.type !== "image/webp") blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
   if (!blob) throw new Error("No se pudo procesar la imagen");
   return blob;
+}
+
+async function resizeImage(file) {
+  const source = await decodeImage(file);
+  try {
+    return { full: await encode(source, FULL), thumb: await encode(source, THUMB) };
+  } finally {
+    source.close?.();
+  }
 }
 
 const QUEUE_LABELS = { waiting: "En espera", working: "Subiendo…", done: "Lista", error: "Error" };
@@ -458,15 +624,24 @@ async function uploadFiles(files) {
   for (const [i, file] of files.entries()) {
     setRow(rows[i], "working");
     try {
-      const blob = await resizeImage(file);
-      const path = `${p.id}/${crypto.randomUUID()}.jpg`;
-      const { error: upErr } = await sb.storage.from(BUCKET).upload(path, blob, { contentType: "image/jpeg", cacheControl: "31536000" });
-      if (upErr) throw upErr;
+      const { full, thumb } = await resizeImage(file);
+      const base = `${p.id}/${crypto.randomUUID()}`;
+      const ext = full.type === "image/webp" ? "webp" : "jpg";
+      const path = `${base}.${ext}`;
+      const thumbPath = `${base}.thumb.${ext}`;
+      const options = { contentType: full.type, cacheControl: "31536000" };
+      for (const [target, blob] of [[path, full], [thumbPath, thumb]]) {
+        const { error: upErr } = await sb.storage.from(BUCKET).upload(target, blob, options);
+        if (upErr) {
+          await sb.storage.from(BUCKET).remove([path, thumbPath]);
+          throw upErr;
+        }
+      }
       const { data, error: rowErr } = await sb.from("product_images")
-        .insert({ product_id: p.id, path, sort_order: ++order })
-        .select("id,path,sort_order").single();
+        .insert({ product_id: p.id, path, thumb_path: thumbPath, sort_order: ++order })
+        .select("id,path,thumb_path,sort_order").single();
       if (rowErr) {
-        await sb.storage.from(BUCKET).remove([path]);
+        await sb.storage.from(BUCKET).remove([path, thumbPath]);
         throw rowErr;
       }
       p.product_images.push(data);
@@ -490,7 +665,7 @@ async function deleteImage(imageId) {
   if (!img || !confirm("¿Eliminar esta foto?")) return;
   const { error } = await sb.from("product_images").delete().eq("id", imageId);
   if (error) return alert(error.message);
-  await sb.storage.from(BUCKET).remove([img.path]);
+  await sb.storage.from(BUCKET).remove([img.path, img.thumb_path].filter(Boolean));
   p.product_images = p.product_images.filter((x) => x.id !== imageId);
   renderList();
   renderEditor();

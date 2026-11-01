@@ -17,6 +17,7 @@ type SourceProduct = {
   stock_actual: number | null;
   genero: number | null;
   updated_at: string | null;
+  created_at: string | null;
   catalogo_productos: { nombre: string | null; descripcion: string | null } | null;
 };
 
@@ -35,7 +36,7 @@ async function fetchSourceProducts(): Promise<SourceProduct[]> {
   const products: SourceProduct[] = [];
   for (let offset = 0; ; offset += PAGE_SIZE) {
     const params = new URLSearchParams({
-      select: "id,nombre,descripcion,stock_actual,genero,updated_at,catalogo_productos(nombre,descripcion)",
+      select: "id,nombre,descripcion,stock_actual,genero,created_at,updated_at,catalogo_productos(nombre,descripcion)",
       activo: "eq.true",
       usuario_id: `eq.${env("SOURCE_USUARIO_ID")}`,
       order: "nombre.asc",
@@ -49,6 +50,31 @@ async function fetchSourceProducts(): Promise<SourceProduct[]> {
     const page: SourceProduct[] = await res.json();
     products.push(...page);
     if (page.length < PAGE_SIZE) return products;
+  }
+}
+
+// Every category used by feria-ventas becomes a read-only 'feria' category: missing ones are added,
+// and a same-named category an admin created by hand is taken over.
+// deno-lint-ignore no-explicit-any
+async function syncCategories(db: any, names: string[]) {
+  const { data: existing, error } = await db.from("categories").select("id,name,source");
+  if (error) throw error;
+  const byKey = new Map(existing.map((c: { name: string }) => [c.name.trim().toLowerCase(), c]));
+  const toInsert = new Map<string, string>();
+  const toClaim: string[] = [];
+  for (const name of names) {
+    const key = name.toLowerCase();
+    const found = byKey.get(key) as { id: string; source: string } | undefined;
+    if (!found) toInsert.set(key, name);
+    else if (found.source !== "feria" && !toClaim.includes(found.id)) toClaim.push(found.id);
+  }
+  if (toInsert.size) {
+    const { error: e } = await db.from("categories").insert([...toInsert.values()].map((name) => ({ name, source: "feria" })));
+    if (e) throw e;
+  }
+  if (toClaim.length) {
+    const { error: e } = await db.from("categories").update({ source: "feria" }).in("id", toClaim);
+    if (e) throw e;
   }
 }
 
@@ -74,6 +100,7 @@ Deno.serve(async (req) => {
       genero: p.genero,
       stock: p.stock_actual ?? 0,
       active: true,
+      source_created_at: p.created_at,
       source_updated_at: p.updated_at,
       synced_at: runStartedAt,
     }));
@@ -82,6 +109,7 @@ Deno.serve(async (req) => {
       const { error: upsertError } = await db.from("products").upsert(rows);
       if (upsertError) throw upsertError;
     }
+    await syncCategories(db, rows.map((r) => r.category).filter((c): c is string => !!c));
 
     await db.from("sync_log").insert({ ok: true, product_count: rows.length, deactivated_count: 0 });
     return Response.json({ ok: true, products: rows.length });

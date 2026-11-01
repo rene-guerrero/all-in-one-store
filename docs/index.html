@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="styles.css?v=556350">
   <script src="theme.js?v=556350"></script>
   <script src="config.js?v=556350"></script>
+  <script src="multiselect.js?v=1"></script>
   <script src="catalog.js?v=556350"></script>
   <script src="app.js?v=556350" defer></script>
 </head>
@@ -47,23 +48,23 @@
       <label class="sr-only" for="search">Buscar</label>
       <input id="search" class="search" type="search" placeholder="Buscar modelo, ej. Samsung A15, iPhone 13…" autocomplete="off">
       <div class="filter-row">
-        <span class="brand-chip" id="brand-chip">
-          <label class="sr-only" for="brand">Marca</label>
-          <select id="brand"><option value="">Marca</option></select>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-        </span>
-        <span class="brand-chip category-chip" id="category-chip">
-          <label class="sr-only" for="category">Categoría</label>
-          <select id="category"><option value="">Categoría</option></select>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-        </span>
+        <div class="filter-ms" id="brand-ms"></div>
+        <div class="filter-ms category-ms" id="category-ms"></div>
         <div class="chips" id="categories" role="group" aria-label="Categorías"></div>
       </div>
     </div>
   </div>
 
   <main class="wrap">
-    <p class="result-info" id="result-info" aria-live="polite"></p>
+    <div class="result-bar">
+      <p class="result-info" id="result-info" aria-live="polite"></p>
+      <label class="sort-select">Ordenar
+        <select id="sort">
+          <option value="novedades">Novedades</option>
+          <option value="az">A–Z</option>
+        </select>
+      </label>
+    </div>
     <div class="grid" id="grid"></div>
   </main>
 

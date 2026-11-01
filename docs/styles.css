@@ -128,21 +128,13 @@ a { color: var(--brand); }
   width: 100%; min-width: 0; padding: 10px 14px; border-radius: 12px;
   border: 1px solid var(--border); background: var(--surface);
 }
-.search:focus, .select:focus, .brand-chip select:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.search:focus, .select:focus, .ms-button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 .select { padding: 11px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
 
 /* Brand picker styled as a chip, followed by a horizontally scrolling row of category chips. */
 .filter-row { display: flex; gap: 8px; align-items: center; min-width: 0; }
-.brand-chip { position: relative; flex: none; display: inline-flex; }
-.brand-chip select {
-  appearance: none; -webkit-appearance: none; cursor: pointer;
-  padding: 7px 30px 7px 14px; border-radius: 999px; max-width: 150px; text-overflow: ellipsis;
-  border: 1px solid var(--border); background: var(--surface); font-size: 0.88rem; font-weight: 600;
-}
-.brand-chip svg { position: absolute; right: 10px; top: 50%; translate: 0 -50%; width: 14px; height: 14px; pointer-events: none; }
-.brand-chip.active select { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
-.brand-chip.active svg { color: var(--brand); }
-.category-chip { display: none; }
+.filter-ms { flex: none; }
+.category-ms { display: none; }
 .chips {
   flex: 1; min-width: 0; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none;
   scroll-snap-type: x proximity; scroll-padding-inline: 8px; padding-block: 1px;
@@ -248,9 +240,9 @@ dialog.viewer::backdrop { background: rgb(5 10 15 / 70%); }
   .toolbar .wrap { padding-block: 8px; gap: 8px; }
   /* Phones: brand and category become two equal dropdowns instead of the chip row. */
   .chips { display: none; }
-  .category-chip { display: inline-flex; }
-  .brand-chip { flex: 1; min-width: 0; }
-  .brand-chip select { width: 100%; max-width: none; font-size: 0.86rem; padding: 8px 30px 8px 12px; }
+  .category-ms { display: block; }
+  .filter-ms { flex: 1; min-width: 0; }
+  .filter-ms .ms-button { width: 100%; max-width: none; font-size: 0.86rem; padding-block: 8px; }
 }
 
 /* Admin */
@@ -374,3 +366,137 @@ dialog.viewer::backdrop { background: rgb(5 10 15 / 70%); }
   background: var(--brand-soft); color: var(--text);
 }
 .viewer-description { margin: 0; white-space: pre-line; line-height: 1.5; }
+
+/* Admin tabs and categories */
+.admin-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.admin-tabs button {
+  flex: 1; max-width: 200px; padding: 10px 14px; border-radius: 12px; cursor: pointer; font-weight: 600;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+}
+.admin-tabs button[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+.categories-panel { padding: 14px; display: grid; gap: 10px; max-width: 720px; }
+.category-add { display: flex; gap: 8px; }
+.category-add input, .category-name {
+  flex: 1; min-width: 0; width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); font: inherit; font-size: 16px;
+}
+.category-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.category-list li { display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid var(--border); border-radius: 12px; }
+.category-list .mini { width: 40px; height: 40px; border-radius: 9px; background: var(--surface-2); flex: none; }
+.category-list .meta { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.category-list .meta div { font-weight: 600; }
+.category-list .meta small { color: var(--muted); }
+.category-actions { display: flex; gap: 6px; flex: none; }
+.product-form select {
+  width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); font: inherit; font-size: 16px; font-weight: 400;
+}
+@media (max-width: 600px) {
+  .admin-tabs button { max-width: none; }
+  .category-list li { flex-wrap: wrap; }
+  .category-actions { width: 100%; justify-content: flex-end; }
+}
+
+/* Clear (✕) button on selected filter dropdowns */
+.chip-clear {
+  position: absolute; right: 4px; top: 50%; translate: 0 -50%;
+  width: 26px; height: 26px; border-radius: 50%; border: 0; padding: 0; cursor: pointer;
+  display: grid; place-items: center; font-size: 13px; line-height: 1;
+  background: var(--brand); color: var(--brand-ink);
+}
+
+
+/* Result count + sort */
+.result-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 14px; }
+.result-bar .result-info { margin: 0; }
+.sort-select { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.88rem; }
+.sort-select select {
+  padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); font: inherit; font-weight: 600; cursor: pointer;
+}
+.badge-new {
+  position: absolute; left: 8px; top: 8px; padding: 2px 9px; border-radius: 999px;
+  background: var(--accent); color: #fff; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.3px;
+}
+
+/* Admin filter dropdowns with a clear (✕) button */
+.filter-line .select-wrap { position: relative; flex: 1; min-width: 0; display: flex; }
+.filter-line .select-wrap .select { width: 100%; }
+.filter-line .select-wrap .select.active { padding-right: 32px; }
+
+/* Multi-select filter dropdown (multiselect.js) */
+.ms { position: relative; }
+.ms-button {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 190px; cursor: pointer;
+  padding: 7px 30px 7px 14px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); font: inherit; font-size: 0.88rem; font-weight: 600;
+}
+.ms-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ms-caret { position: absolute; right: 10px; top: 50%; translate: 0 -50%; width: 14px; height: 14px; pointer-events: none; }
+.ms.active .ms-button { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
+.ms.active .ms-caret { display: none; }
+.ms-backdrop { position: fixed; inset: 0; z-index: 30; background: transparent; }
+.ms-panel[hidden], .ms-backdrop[hidden] { display: none; }
+.ms-panel {
+  position: fixed; z-index: 31; width: 260px; max-height: min(420px, 70vh);
+  display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 14px;
+  background: var(--surface); box-shadow: 0 12px 32px rgb(0 0 0 / 22%);
+}
+.ms-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 12px 14px 6px; }
+.ms-head small { color: var(--muted); }
+.ms-options { list-style: none; margin: 0; padding: 4px 6px; overflow: auto; flex: 1; }
+.ms-options label {
+  display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-radius: 10px; cursor: pointer; font-size: 0.92rem;
+}
+.ms-options label:hover { background: var(--surface-2); }
+.ms-options input { width: 18px; height: 18px; accent-color: var(--brand); flex: none; margin: 0; }
+.ms-options svg { width: 16px; height: 16px; flex: none; color: var(--muted); }
+.ms-option-label { flex: 1; min-width: 0; }
+.ms-option-count { color: var(--muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.ms-foot { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--border); }
+.ms-foot .btn { flex: 1; }
+@media (max-width: 600px) {
+  /* Bottom sheet on phones */
+  .ms-backdrop { background: rgb(5 10 15 / 50%); }
+  .ms-panel {
+    left: 0 !important; right: 0; top: auto !important; bottom: 0; width: auto; min-width: 0 !important; max-height: 70vh;
+    border-radius: 18px 18px 0 0; padding-bottom: env(safe-area-inset-bottom);
+  }
+  .ms-head { padding: 16px 16px 8px; font-size: 1.05rem; }
+  .ms-options label { padding: 12px 10px; font-size: 1rem; }
+  .ms-options input { width: 22px; height: 22px; }
+  .ms-foot .btn { min-height: 46px; }
+}
+/* Admin filter row uses the same component */
+.filter-line .filter-ms { flex: 1; min-width: 0; }
+.filter-line .ms-button { width: 100%; max-width: none; border-radius: 12px; padding-block: 9px; font-size: 0.86rem; }
+
+/* Category icon choice + picker */
+.icon-choice {
+  width: 44px; height: 44px; flex: none; display: grid; place-items: center; cursor: pointer; padding: 0;
+  border: 1px dashed var(--brand); border-radius: 10px; background: var(--brand-soft); color: var(--brand);
+}
+.icon-choice svg { width: 26px; height: 26px; }
+.category-list .icon-choice { width: 40px; height: 40px; }
+.category-list .icon-choice svg { width: 58%; height: 58%; opacity: 1; }
+dialog.icon-picker {
+  width: min(560px, calc(100vw - 24px)); max-height: min(640px, calc(100vh - 24px)); padding: 14px;
+  border: 1px solid var(--border); border-radius: 16px; background: var(--surface); color: var(--text);
+  display: none; flex-direction: column; gap: 10px;
+}
+dialog.icon-picker[open] { display: flex; }
+dialog.icon-picker::backdrop { background: rgb(5 10 15 / 60%); }
+.icon-picker-head { display: flex; align-items: center; justify-content: space-between; }
+.icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; overflow: auto; padding: 2px; }
+.icon-grid button {
+  display: grid; justify-items: center; gap: 6px; padding: 10px 4px; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); color: var(--text); font: inherit;
+}
+.icon-grid button:hover { border-color: var(--brand); }
+.icon-grid button[aria-pressed="true"] { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
+.icon-grid svg { width: 28px; height: 28px; }
+.icon-grid span { font-size: 0.72rem; line-height: 1.2; text-align: center; overflow-wrap: anywhere; min-width: 0; }
+@media (max-width: 600px) {
+  dialog.icon-picker { margin: auto 0 0; width: 100%; max-width: 100%; max-height: 80vh; border-radius: 18px 18px 0 0; }
+  .icon-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}

@@ -12,6 +12,7 @@
   <script src="theme.js?v=556350"></script>
   <script src="config.js?v=556350"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script src="multiselect.js?v=1"></script>
   <script src="catalog.js?v=556350"></script>
   <script src="admin.js?v=556350" defer></script>
 </head>
@@ -51,6 +52,31 @@
   </form>
 
   <main class="wrap" id="app" hidden>
+    <nav class="admin-tabs" aria-label="Secciones">
+      <button type="button" data-tab="products" aria-pressed="true">Productos</button>
+      <button type="button" data-tab="categories" aria-pressed="false">Categorías</button>
+    </nav>
+
+    <section class="panel categories-panel" id="categories-panel" hidden>
+      <form class="category-add" id="category-add">
+        <button type="button" class="icon-choice" id="new-category-icon" data-icon="otros" aria-label="Elegir ícono" title="Elegir ícono"></button>
+        <input id="new-category" maxlength="60" placeholder="Nueva categoría, ej. Televisores" autocomplete="off" required>
+        <button class="btn btn-primary" type="submit">Agregar</button>
+      </form>
+      <div class="status" id="category-status" aria-live="polite"></div>
+      <p class="sync-note">Las categorías de SoftCell vienen de feria-ventas y no se pueden editar ni eliminar. Las que crees aquí sí.</p>
+      <ul class="category-list" id="category-list"></ul>
+    </section>
+
+    <dialog class="icon-picker" id="icon-picker" aria-labelledby="icon-picker-title">
+      <div class="icon-picker-head">
+        <strong id="icon-picker-title">Elige un ícono</strong>
+        <button type="button" class="btn btn-sm" id="icon-picker-close" aria-label="Cerrar">✕</button>
+      </div>
+      <input type="search" id="icon-search" class="search" placeholder="Buscar: tv, ropa, lavadora…" autocomplete="off">
+      <div class="icon-grid" id="icon-grid"></div>
+    </dialog>
+
     <div class="admin-layout" id="admin-layout">
       <section class="panel list-panel">
         <div class="panel-head">
@@ -58,15 +84,14 @@
             <input id="filter" class="search" type="search" placeholder="Buscar producto…" autocomplete="off">
             <button class="btn btn-primary" type="button" id="new-product">+ Nuevo</button>
           </div>
-          <datalist id="category-options"></datalist>
           <div class="filter-line">
-            <select id="filter-brand" class="select" aria-label="Filtrar por marca"><option value="">Marca</option></select>
-            <select id="filter-category" class="select" aria-label="Filtrar por categoría"><option value="">Categoría</option></select>
-            <select id="filter-images" class="select" aria-label="Filtrar por fotos">
+            <div class="filter-ms" id="brand-ms"></div>
+            <div class="filter-ms" id="category-ms"></div>
+            <span class="select-wrap"><select id="filter-images" class="select" aria-label="Filtrar por fotos">
               <option value="">Fotos</option>
               <option value="none">Sin fotos</option>
               <option value="some">Con fotos</option>
-            </select>
+            </select><button type="button" class="chip-clear" data-clear="filter-images" aria-label="Quitar filtro" hidden>✕</button></span>
           </div>
           <small class="status" id="list-info"></small>
         </div>
