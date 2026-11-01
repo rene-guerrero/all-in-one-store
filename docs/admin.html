@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Feria SoftCell · Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script src="admin.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <div class="brand-mark" aria-hidden="true">F</div>
+      <div class="brand-text">
+        <h1>Admin de imágenes</h1>
+        <p id="who">Feria SoftCell</p>
+      </div>
+      <div class="header-actions">
+        <a class="btn" href="./">Ver tienda</a>
+        <button class="btn" id="logout" hidden>Salir</button>
+      </div>
+    </div>
+  </header>
+
+  <form class="panel login-card" id="login" hidden>
+    <h2 style="margin:0">Entrar</h2>
+    <input type="email" id="email" placeholder="Correo" autocomplete="username" required>
+    <input type="password" id="password" placeholder="Contraseña" autocomplete="current-password" required>
+    <button class="btn btn-primary" type="submit">Entrar</button>
+    <div class="status" id="login-status"></div>
+  </form>
+
+  <main class="wrap" id="app" hidden>
+    <div class="admin-layout">
+      <section class="panel">
+        <div class="panel-head">
+          <input id="filter" class="search" type="search" placeholder="Buscar producto…" autocomplete="off">
+          <select id="filter-images" class="select">
+            <option value="">Todos los productos</option>
+            <option value="none">Sin imágenes</option>
+            <option value="some">Con imágenes</option>
+          </select>
+          <small class="status" id="list-info"></small>
+        </div>
+        <ul class="product-list" id="products"></ul>
+      </section>
+
+      <section class="panel editor" id="editor">
+        <p class="status">Elige un producto de la lista para subir o editar sus imágenes.</p>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
