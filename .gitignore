@@ -4,3 +4,4 @@ node_modules/
 .claude/
 supabase/.temp/
 supabase/.branches/
+/feria-post1-img*.jpg

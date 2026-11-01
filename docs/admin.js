@@ -3,6 +3,9 @@ const BUCKET = "product-images";
 const MAX_SIDE = 1600;
 const JPEG_QUALITY = 0.85;
 
+// Invite and password-reset emails land here with #...&type=invite|recovery; read it before
+// supabase-js consumes the hash.
+const authLinkType = new URLSearchParams(location.hash.slice(1)).get("type");
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = (sel) => document.querySelector(sel);
 const fold = (s) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -50,6 +53,49 @@ $("#login").addEventListener("submit", async (e) => {
 $("#logout").addEventListener("click", async () => {
   await sb.auth.signOut();
   showForSession(null);
+});
+
+$("#forgot").addEventListener("click", async () => {
+  const status = $("#login-status");
+  const email = $("#email").value.trim();
+  status.classList.remove("error");
+  if (!email) {
+    status.textContent = "Escribe tu correo primero.";
+    status.classList.add("error");
+    return;
+  }
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.href.split("#")[0] });
+  status.textContent = error ? error.message : "Te enviamos un correo para crear una nueva contraseña.";
+  status.classList.toggle("error", !!error);
+});
+
+function showSetPassword() {
+  $("#login").hidden = true;
+  $("#app").hidden = true;
+  $("#set-password").hidden = false;
+}
+
+$("#set-password").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const status = $("#set-password-status");
+  const password = $("#new-password").value;
+  status.classList.remove("error");
+  if (password.length < 8) {
+    status.textContent = "Usa al menos 8 caracteres.";
+    status.classList.add("error");
+    return;
+  }
+  status.textContent = "Guardando…";
+  const { data, error } = await sb.auth.updateUser({ password });
+  if (error) {
+    status.textContent = error.message;
+    status.classList.add("error");
+    return;
+  }
+  $("#set-password").hidden = true;
+  history.replaceState(null, "", location.pathname);
+  const { data: { session } } = await sb.auth.getSession();
+  showForSession(session ?? data.session);
 });
 
 /* Product list */
@@ -217,4 +263,10 @@ async function moveImage(imageId, delta) {
   renderEditor();
 }
 
-sb.auth.getSession().then(({ data }) => showForSession(data.session));
+sb.auth.onAuthStateChange((event) => {
+  if (event === "PASSWORD_RECOVERY") showSetPassword();
+});
+sb.auth.getSession().then(({ data }) => {
+  if (data.session && (authLinkType === "invite" || authLinkType === "recovery")) showSetPassword();
+  else showForSession(data.session);
+});

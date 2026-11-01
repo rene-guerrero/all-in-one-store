@@ -1,8 +1,8 @@
 // Public settings for the store. The anon key is meant to be public: row level security
 // in Supabase decides what it can read or write.
 window.STORE_CONFIG = {
-  SUPABASE_URL: "https://YOUR-PROJECT-REF.supabase.co",
-  SUPABASE_ANON_KEY: "YOUR-ANON-KEY",
+  SUPABASE_URL: "https://xtqplczqhxdvifzlavgj.supabase.co",
+  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh0cXBsY3pxaHhkdmlmemxhdmdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM1NTE3NjgsImV4cCI6MjEwOTEyNzc2OH0.mhyQBFv4MhNcqiE22-jjmwK0g5KgTOJhiAf1Hyu3pM8",
   STORE: {
     name: "All in One",
     tagline: "Covers, micas y accesorios para celulares en Holguín",
