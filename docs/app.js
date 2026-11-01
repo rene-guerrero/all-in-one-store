@@ -4,6 +4,8 @@ const ICONS = {
   photos: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="m21 16-5-5-8 8"/></svg>',
   prev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>',
   next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>',
+  cartAdd: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2.5l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1L21 8H6.3"/><circle cx="9.5" cy="19.5" r="1.5"/><circle cx="17.5" cy="19.5" r="1.5"/><path d="M14 9.5v3M12.5 11h3"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
 };
 
 const ALL_ICON = svg('<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>');
@@ -146,14 +148,182 @@ function cardHtml(p) {
     ? `<img src="${escapeHtml(p.thumbs[0])}" alt="${escapeHtml(p.name)}" loading="lazy">` +
       (p.images.length > 1 ? `<span class="photo-count">${ICONS.photos}${p.images.length}</span>` : "")
     : `<div class="placeholder">${categoryIcon(p.categoryKey)}</div>`;
-  return `<button class="card" data-id="${p.id}">
-    <div class="card-media">${media}${p.isNew ? '<span class="badge-new">Nuevo</span>' : ""}</div>
-    <div class="card-body">
-      <span class="card-category">${categoryIcon(p.categoryKey)}${escapeHtml(p.categoryLabel)}</span>
-      <span class="card-name">${escapeHtml(p.name)}</span>
-      ${p.stock <= 2 ? '<span class="badge-low">Últimas unidades</span>' : ""}
-    </div>
-  </button>`;
+  const inCart = !!order.items[p.id];
+  return `<div class="card-wrap">
+    <button class="card" data-id="${p.id}">
+      <div class="card-media">${media}${p.isNew ? '<span class="badge-new">Nuevo</span>' : ""}</div>
+      <div class="card-body">
+        <span class="card-category">${categoryIcon(p.categoryKey)}${escapeHtml(p.categoryLabel)}</span>
+        <span class="card-name">${escapeHtml(p.name)}</span>
+        ${p.stock <= 2 ? '<span class="badge-low">Últimas unidades</span>' : ""}
+      </div>
+    </button>
+    <button class="add-cart ${inCart ? "in" : ""}" type="button" data-add="${p.id}" aria-pressed="${inCart}"
+      aria-label="${inCart ? "Quitar del pedido" : "Agregar al pedido"}: ${escapeHtml(p.name)}">${inCart ? ICONS.check : ICONS.cartAdd}</button>
+  </div>`;
+}
+
+/* Order list (🛒): customers collect products and send them in one WhatsApp message.
+   Kept in this browser only (localStorage) as a convenience; no prices, the shop confirms in the chat. */
+const ORDER_KEY = "aio-order";
+const ORDER_FORM_KEY = "aio-order-form";
+const readStored = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } };
+const writeStored = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* private mode */ } };
+const order = { items: readStored(ORDER_KEY, {}) }; // { productId: quantity }
+
+const productById = (id) => state.products.find((p) => p.id === id);
+const orderTotal = () => Object.values(order.items).reduce((sum, q) => sum + q, 0);
+
+function saveOrder() {
+  writeStored(ORDER_KEY, order.items);
+  const total = orderTotal();
+  $("#cart-count").textContent = total;
+  $("#cart-count").hidden = total === 0;
+}
+
+// Drop products that sold out or disappeared since the list was saved, and cap quantities at stock.
+function reconcileOrder() {
+  for (const [id, qty] of Object.entries(order.items)) {
+    const p = productById(id);
+    if (!p) delete order.items[id];
+    else order.items[id] = Math.max(1, Math.min(qty, p.stock));
+  }
+  saveOrder();
+}
+
+let toastTimer;
+function toast(message) {
+  const el = $("#toast");
+  el.textContent = message;
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 2200);
+}
+
+function toggleInOrder(id) {
+  const p = productById(id);
+  if (!p) return;
+  if (order.items[id]) {
+    delete order.items[id];
+    toast(`Quitado del pedido: ${p.name}`);
+  } else {
+    order.items[id] = 1;
+    toast(`🛒 Agregado al pedido: ${p.name}`);
+  }
+  saveOrder();
+  syncOrderButtons(id);
+}
+
+function syncOrderButtons(id) {
+  const inCart = !!order.items[id];
+  document.querySelectorAll(`[data-add="${id}"]`).forEach((b) => {
+    b.classList.toggle("in", inCart);
+    b.setAttribute("aria-pressed", inCart);
+    b.innerHTML = inCart ? ICONS.check : ICONS.cartAdd;
+  });
+  if (current.product?.id === id) syncViewerAdd();
+}
+
+function syncViewerAdd() {
+  const inCart = !!order.items[current.product.id];
+  $("#viewer-add").classList.toggle("in", inCart);
+  $("#viewer-add span").textContent = inCart ? "En tu pedido · quitar" : "Agregar al pedido";
+}
+
+function renderOrder() {
+  const entries = Object.entries(order.items).map(([id, qty]) => ({ p: productById(id), qty })).filter((e) => e.p);
+  $("#cart-empty").hidden = entries.length > 0;
+  $("#cart-form").hidden = entries.length === 0;
+  $("#cart-title").textContent = entries.length ? `🛒 Mi pedido (${orderTotal()})` : "🛒 Mi pedido";
+  $("#cart-items").innerHTML = entries.map(({ p, qty }) => `
+    <li data-item="${p.id}">
+      ${p.thumbs.length ? `<img src="${escapeHtml(p.thumbs[0])}" alt="">` : `<span class="cart-thumb">${categoryIcon(p.categoryKey)}</span>`}
+      <span class="cart-name">${escapeHtml(p.name)}<small>${escapeHtml(p.categoryLabel)}</small></span>
+      <span class="qty">
+        <button type="button" data-qty="-1" aria-label="Menos" ${qty <= 1 ? "disabled" : ""}>−</button>
+        <output>${qty}</output>
+        <button type="button" data-qty="1" aria-label="Más" ${qty >= p.stock ? "disabled" : ""}>+</button>
+      </span>
+      <button type="button" class="cart-remove" data-remove="${p.id}" aria-label="Quitar ${escapeHtml(p.name)}">✕</button>
+    </li>`).join("");
+}
+
+function openOrder() {
+  reconcileOrder();
+  renderOrder();
+  const saved = readStored(ORDER_FORM_KEY, {});
+  const form = $("#cart-form");
+  for (const field of ["name", "address", "note"]) if (saved[field] && !form.elements[field].value) form.elements[field].value = saved[field];
+  if (saved.delivery) form.elements.delivery.value = saved.delivery;
+  $("#cart-address-wrap").hidden = form.elements.delivery.value !== "home";
+  $("#cart-status").textContent = "";
+  $("#cart").showModal();
+}
+
+function orderMessage(form) {
+  const lines = Object.entries(order.items)
+    .map(([id, qty]) => ({ p: productById(id), qty })).filter((e) => e.p)
+    .map(({ p, qty }, i) => `${i + 1}. ${p.name} × ${qty}`);
+  const home = form.elements.delivery.value === "home";
+  const name = form.elements.name.value.trim();
+  const note = form.elements.note.value.trim();
+  return [
+    `Hola${name ? `, soy ${name}` : ""}. Quiero hacer este pedido en ${STORE.name}:`, "",
+    ...lines, "",
+    home ? `🚚 Entrega a domicilio: ${form.elements.address.value.trim()}` : "🏪 Recogeré en la tienda",
+    ...(note ? [`📝 Nota: ${note}`] : []), "",
+    "¿Me confirman precio y disponibilidad? Gracias.",
+  ].join("\n");
+}
+
+function bindOrder() {
+  $("#cart-button").addEventListener("click", openOrder);
+  $("#cart-close").addEventListener("click", () => $("#cart").close());
+  $("#cart").addEventListener("click", (e) => { if (e.target === $("#cart")) $("#cart").close(); });
+  $("#viewer-add").addEventListener("click", () => toggleInOrder(current.product.id));
+  $("#cart-items").addEventListener("click", (e) => {
+    const row = e.target.closest("[data-item]");
+    if (!row) return;
+    const id = row.dataset.item;
+    const step = e.target.closest("[data-qty]");
+    if (step) {
+      order.items[id] = Math.max(1, Math.min(order.items[id] + Number(step.dataset.qty), productById(id).stock));
+    } else if (e.target.closest("[data-remove]")) {
+      delete order.items[id];
+      syncOrderButtons(id);
+    } else return;
+    saveOrder();
+    renderOrder();
+  });
+  $("#cart-form").addEventListener("change", (e) => {
+    if (e.target.name === "delivery") $("#cart-address-wrap").hidden = e.target.value !== "home";
+  });
+  $("#cart-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const status = $("#cart-status");
+    if (form.elements.delivery.value === "home" && !form.elements.address.value.trim()) {
+      status.textContent = "Escribe la dirección de entrega.";
+      status.classList.add("error");
+      form.elements.address.focus();
+      return;
+    }
+    status.classList.remove("error");
+    writeStored(ORDER_FORM_KEY, {
+      name: form.elements.name.value.trim(), address: form.elements.address.value.trim(),
+      note: "", delivery: form.elements.delivery.value,
+    });
+    window.open(whatsappLink(orderMessage(form)), "_blank", "noopener");
+    status.textContent = "Se abrió WhatsApp con tu pedido. Cuando lo envíes, puedes vaciar la lista.";
+  });
+  $("#cart-clear").addEventListener("click", () => {
+    if (!confirm("¿Vaciar el pedido?")) return;
+    const ids = Object.keys(order.items);
+    order.items = {};
+    saveOrder();
+    ids.forEach(syncOrderButtons);
+    renderOrder();
+  });
 }
 
 function renderGrid() {
@@ -192,6 +362,7 @@ function openViewer(product) {
     : "";
   $("#thumbs").hidden = images.length < 2;
   if (images.length) showImage(0);
+  syncViewerAdd();
   $("#viewer").showModal();
 }
 
@@ -218,6 +389,8 @@ function bindEvents() {
     chip.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
   });
   $("#grid").addEventListener("click", (e) => {
+    const add = e.target.closest("[data-add]");
+    if (add) return toggleInOrder(add.dataset.add);
     const card = e.target.closest(".card");
     if (card) openViewer(state.products.find((p) => p.id === card.dataset.id));
   });
@@ -249,9 +422,12 @@ function bindEvents() {
 async function init() {
   fillStoreInfo();
   bindEvents();
+  bindOrder();
+  saveOrder();
   $("#grid").innerHTML = Array.from({ length: 8 }, () => '<div class="skeleton"></div>').join("");
   try {
     state.products = await loadProducts();
+    reconcileOrder();
     renderFilters();
     renderGrid();
   } catch (err) {
