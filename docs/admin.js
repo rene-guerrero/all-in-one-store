@@ -45,6 +45,71 @@ async function showForSession(session) {
   $("#app").hidden = false;
   await Promise.all([loadCategories(), loadProducts()]);
   renderCategories();
+  loadSyncSummary();
+}
+
+/* Daily SoftCell integration summary: every sync run of the last 24 h, merged. Closing it hides it
+   until a newer run arrives (remembered per browser). */
+const SYNC_DISMISS_KEY = "sync-summary-dismissed";
+
+async function loadSyncSummary() {
+  const since = new Date(Date.now() - 24 * 3600e3).toISOString();
+  const { data, error } = await sb.from("sync_log")
+    .select("id,ran_at,summary").eq("ok", true).not("summary", "is", null).gte("ran_at", since).order("ran_at");
+  if (error || !data?.length) return;
+  const latestId = String(data.at(-1).id);
+  let dismissed = null;
+  try { dismissed = localStorage.getItem(SYNC_DISMISS_KEY); } catch { /* storage blocked */ }
+  if (dismissed === latestId) return;
+  renderSyncSummary(mergeSummaries(data.map((r) => r.summary)), data.at(-1).ran_at, latestId, data.length);
+}
+
+function mergeSummaries(list) {
+  const lists = ["added", "restocked", "sold", "changed", "missing", "categories"];
+  const out = { counts: {} };
+  for (const s of list) {
+    for (const [k, v] of Object.entries(s.counts || {})) out.counts[k] = (out.counts[k] || 0) + v;
+    for (const k of lists) out[k] = [...(out[k] || []), ...(s[k] || [])];
+  }
+  return out;
+}
+
+function renderSyncSummary(s, ranAt, latestId, runs) {
+  const c = s.counts;
+  const when = new Date(ranAt).toLocaleString("es", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+  const total = c.added + c.restocked + c.sold + c.changed + c.missing + c.categories;
+  const pill = (n, label, cls = "") => n ? `<span class="sync-pill ${cls}">${n} ${label}</span>` : "";
+  const section = (title, items, line) => items.length ? `<h4>${title}</h4><ul>${items.map((i) => `<li>${line(i)}</li>`).join("")}</ul>` : "";
+  const e = escapeHtml;
+  $("#sync-banner").innerHTML = `
+    <div class="sync-head">
+      <div>
+        <strong>Integración SoftCell · últimas 24 h</strong>
+        <small>Última sincronización: ${e(when)}${runs > 1 ? ` · ${runs} ejecuciones` : ""}</small>
+      </div>
+      <button type="button" class="btn btn-sm" id="sync-close" aria-label="Cerrar resumen">✕</button>
+    </div>
+    ${total ? `<div class="sync-pills">
+      ${pill(c.added, c.added === 1 ? "producto nuevo" : "productos nuevos", "ok")}
+      ${pill(c.restocked, `repuestos (+${c.unitsRestocked} uds)`, "ok")}
+      ${pill(c.sold, `con ventas (−${c.unitsSold} uds)`)}
+      ${pill(c.changed, c.changed === 1 ? "renombrado / recategorizado" : "renombrados / recategorizados")}
+      ${pill(c.categories, c.categories === 1 ? "categoría nueva" : "categorías nuevas", "ok")}
+      ${pill(c.missing, "ya no están en feria-ventas", "warn")}
+    </div>
+    <details class="sync-details"><summary>Ver detalles</summary>
+      ${section("Productos nuevos", s.added, (i) => `${e(i.name)} <small>${e(i.category || "")} · stock ${i.stock}</small>`)}
+      ${section("Repuestos", s.restocked, (i) => `${e(i.name)} <small>${i.from} → ${i.to}</small>`)}
+      ${section("Con ventas", s.sold, (i) => `${e(i.name)} <small>${i.from} → ${i.to}</small>`)}
+      ${section("Renombrados / recategorizados", s.changed, (i) => `${e(i.from)} → ${e(i.to)}${i.categoryFrom !== i.categoryTo ? ` <small>${e(i.categoryFrom || "—")} → ${e(i.categoryTo || "—")}</small>` : ""}`)}
+      ${section("Categorías nuevas", s.categories, (i) => e(i))}
+      ${section("Ya no aparecen en feria-ventas (se mantienen en All in One)", s.missing, (i) => `${e(i.name)} <small>stock ${i.stock}</small>`)}
+    </details>` : '<p class="sync-empty">Sin cambios desde feria-ventas.</p>'}`;
+  $("#sync-banner").hidden = false;
+  $("#sync-close").addEventListener("click", () => {
+    $("#sync-banner").hidden = true;
+    try { localStorage.setItem(SYNC_DISMISS_KEY, latestId); } catch { /* storage blocked */ }
+  });
 }
 
 $("#login").addEventListener("submit", async (e) => {
@@ -172,7 +237,11 @@ function renderList() {
   $("#list-info").textContent = `${list.length} mostrados · ${withImages}/${state.products.length} con imágenes`;
   $("#products").innerHTML = list.map((p) => {
     const first = p.product_images[0];
-    return `<li><button data-id="${p.id}" aria-current="${p.id === state.selectedId}">
+    const selectable = state.sharing && first;
+    const check = state.sharing
+      ? `<span class="share-check ${share.selected.has(p.id) ? "on" : ""} ${first ? "" : "off"}" aria-hidden="true">${share.selected.has(p.id) ? "✓" : ""}</span>`
+      : "";
+    return `<li class="${state.sharing && !first ? "unshareable" : ""}"><button data-id="${p.id}" aria-current="${state.sharing ? share.selected.has(p.id) : p.id === state.selectedId}" ${state.sharing && !selectable ? 'disabled title="Sin fotos: no se puede compartir"' : ""}>${check}
       ${first ? `<img class="mini" src="${escapeHtml(publicUrl(first.thumb_path || first.path))}" alt="" loading="lazy">` : `<span class="mini mini-icon">${categoryIcon(fold(p.category).trim())}</span>`}
       <span class="meta"><div>${escapeHtml(p.name)}</div><small>${escapeHtml(p.category || "")} · stock ${p.stock}${p.hidden ? " · oculto" : ""}${p.source === "manual" ? " · manual" : ""}</small></span>
       <span class="tag ${p.product_images.length ? "ok" : ""}">${p.product_images.length} ${p.product_images.length === 1 ? "foto" : "fotos"}</span>
@@ -189,7 +258,138 @@ document.querySelectorAll("[data-clear]").forEach((btn) => btn.addEventListener(
 $("#products").addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-id]");
   if (!btn) return;
-  openEditor(btn.dataset.id);
+  if (state.sharing) toggleShareSelection(btn.dataset.id);
+  else openEditor(btn.dataset.id);
+});
+
+/* Share to Facebook / WhatsApp / Instagram from the phone: pick products with photos, then the
+   phone's share sheet receives their cover photos (as JPEG) and the caption is copied, because
+   Facebook ignores captions passed by other apps. */
+const SHARE_MAX = 10;
+const share = { selected: new Set(), files: null };
+const SHARE_ICON = icon('<circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/>');
+$("#share-mode").innerHTML = `${SHARE_ICON}<span>Compartir</span>`;
+
+function setSharing(on) {
+  state.sharing = on;
+  share.selected.clear();
+  $("#share-mode").setAttribute("aria-pressed", on);
+  $("#share-bar").hidden = !on;
+  updateShareBar();
+  renderList();
+}
+
+function toggleShareSelection(id) {
+  if (share.selected.has(id)) share.selected.delete(id);
+  else if (share.selected.size >= SHARE_MAX) return alert(`Máximo ${SHARE_MAX} productos por publicación.`);
+  else share.selected.add(id);
+  updateShareBar();
+  // Update just this row so the list doesn't redraw (and jump) on every tap.
+  const on = share.selected.has(id);
+  const row = $(`#products button[data-id="${id}"]`);
+  row?.setAttribute("aria-current", on);
+  const check = row?.querySelector(".share-check");
+  if (check) { check.classList.toggle("on", on); check.textContent = on ? "✓" : ""; }
+}
+
+function updateShareBar() {
+  const n = share.selected.size;
+  $("#share-count").textContent = n ? `${n} de ${SHARE_MAX} seleccionados` : "Toca productos con fotos";
+  $("#share-open").disabled = !n;
+}
+
+function shareCaption(products) {
+  const { STORE } = window.STORE_CONFIG;
+  return [
+    `✨ ¡Disponible en ${STORE.name}! ✨`, "",
+    ...products.map((p) => `📱 ${p.name}`), "",
+    `🚚 ${STORE.delivery}`,
+    `📍 ${STORE.address}`,
+    `💬 WhatsApp: ${STORE.phone}`,
+    `🛒 Catálogo completo: ${STORE.url}`,
+  ].join("\n");
+}
+
+// Facebook and Instagram don't reliably accept WebP from the share sheet, so convert to JPEG.
+async function toJpegFile(url, name) {
+  const blob = await (await fetch(url)).blob();
+  const bitmap = await createImageBitmap(blob);
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  canvas.getContext("2d").drawImage(bitmap, 0, 0);
+  bitmap.close?.();
+  const jpeg = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+  return new File([jpeg], name, { type: "image/jpeg" });
+}
+
+const slug = (s) => fold(s).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "producto";
+
+async function openShareDialog() {
+  const products = state.products.filter((p) => share.selected.has(p.id));
+  $("#share-thumbs").innerHTML = products.map((p) =>
+    `<img src="${escapeHtml(publicUrl(p.product_images[0].thumb_path || p.product_images[0].path))}" alt="${escapeHtml(p.name)}">`).join("");
+  $("#share-text").value = shareCaption(products);
+  $("#share-status").textContent = "";
+  $("#share-go").disabled = true;
+  $("#share-go").textContent = "Preparando fotos…";
+  $("#share-dialog").showModal();
+
+  share.files = null;
+  try {
+    share.files = await Promise.all(products.map((p, i) =>
+      toJpegFile(publicUrl(p.product_images[0].path), `${String(i + 1).padStart(2, "0")}-${slug(p.name)}.jpg`)));
+  } catch (err) {
+    $("#share-status").textContent = `No se pudieron preparar las fotos: ${err.message}`;
+    $("#share-status").classList.add("error");
+    return;
+  }
+  const canShareFiles = !!navigator.canShare?.({ files: share.files });
+  $("#share-go").disabled = false;
+  $("#share-go").textContent = canShareFiles ? "Compartir fotos" : "Descargar fotos";
+}
+
+async function copyCaption() {
+  try {
+    await navigator.clipboard.writeText($("#share-text").value);
+    return true;
+  } catch {
+    $("#share-text").select();
+    return document.execCommand?.("copy") ?? false;
+  }
+}
+
+$("#share-mode").addEventListener("click", () => setSharing(!state.sharing));
+$("#share-cancel").addEventListener("click", () => setSharing(false));
+$("#share-open").addEventListener("click", openShareDialog);
+$("#share-close").addEventListener("click", () => $("#share-dialog").close());
+$("#share-copy").addEventListener("click", async () => {
+  $("#share-status").classList.remove("error");
+  $("#share-status").textContent = (await copyCaption()) ? "Texto copiado." : "No se pudo copiar: selecciónalo y cópialo a mano.";
+});
+$("#share-go").addEventListener("click", async () => {
+  const status = $("#share-status");
+  status.classList.remove("error");
+  // Start the copy and the share in the same tap: phones only open the share sheet right after a gesture.
+  const copied = copyCaption();
+  if (navigator.canShare?.({ files: share.files })) {
+    try {
+      await navigator.share({ files: share.files, text: $("#share-text").value });
+      status.textContent = (await copied) ? "Listo. Si el texto no aparece en la publicación, mantén presionado y pega." : "Listo.";
+    } catch (err) {
+      if (err.name !== "AbortError") { status.textContent = `No se pudo compartir: ${err.message}`; status.classList.add("error"); }
+    }
+    return;
+  }
+  // Computers: download the photos and copy the text, then post from Facebook manually.
+  for (const file of share.files) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(file);
+    a.download = file.name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+  }
+  status.textContent = `${(await copied) ? "Texto copiado y f" : "F"}otos descargadas. Súbelas en una publicación de Facebook y pega el texto.`;
 });
 $("#new-product").addEventListener("click", () => {
   state.draft = { id: null, name: "", category: "", stock: 0, description: "", hidden: false, source: "manual", product_images: [] };
@@ -367,6 +567,7 @@ document.querySelector(".admin-tabs").addEventListener("click", (e) => {
   if (!tab) return;
   document.querySelectorAll(".admin-tabs [data-tab]").forEach((b) => b.setAttribute("aria-pressed", b === tab));
   const showCategories = tab.dataset.tab === "categories";
+  if (showCategories && state.sharing) setSharing(false);
   $("#categories-panel").hidden = !showCategories;
   $("#admin-layout").hidden = showCategories;
   if (showCategories) renderCategories();

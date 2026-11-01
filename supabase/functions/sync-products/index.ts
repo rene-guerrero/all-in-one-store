@@ -76,6 +76,35 @@ async function syncCategories(db: any, names: string[]) {
     const { error: e } = await db.from("categories").update({ source: "feria" }).in("id", toClaim);
     if (e) throw e;
   }
+  return [...toInsert.values()];
+}
+
+type Row = { id: string; name: string; category: string | null; stock: number };
+const LIST_LIMIT = 100;
+
+// Differences between what feria-ventas sent and what the store had before this run.
+function summarize(before: Map<string, Row>, rows: Row[], newCategories: string[]) {
+  const seen = new Set(rows.map((r) => r.id));
+  const added: object[] = [], restocked: object[] = [], sold: object[] = [], changed: object[] = [];
+  let unitsSold = 0, unitsRestocked = 0;
+  for (const r of rows) {
+    const old = before.get(r.id);
+    if (!old) { added.push({ name: r.name, category: r.category, stock: r.stock }); continue; }
+    if (r.stock > old.stock) { restocked.push({ name: r.name, from: old.stock, to: r.stock }); unitsRestocked += r.stock - old.stock; }
+    if (r.stock < old.stock) { sold.push({ name: r.name, from: old.stock, to: r.stock }); unitsSold += old.stock - r.stock; }
+    if (r.name !== old.name || (r.category ?? "") !== (old.category ?? "")) {
+      changed.push({ from: old.name, to: r.name, categoryFrom: old.category, categoryTo: r.category });
+    }
+  }
+  const missing = [...before.values()].filter((p) => !seen.has(p.id)).map((p) => ({ name: p.name, stock: p.stock }));
+  return {
+    counts: {
+      added: added.length, restocked: restocked.length, sold: sold.length, changed: changed.length,
+      missing: missing.length, categories: newCategories.length, unitsSold, unitsRestocked,
+    },
+    added: added.slice(0, LIST_LIMIT), restocked: restocked.slice(0, LIST_LIMIT), sold: sold.slice(0, LIST_LIMIT),
+    changed: changed.slice(0, LIST_LIMIT), missing: missing.slice(0, LIST_LIMIT), categories: newCategories,
+  };
 }
 
 Deno.serve(async (req) => {
@@ -105,14 +134,20 @@ Deno.serve(async (req) => {
       synced_at: runStartedAt,
     }));
 
+    const { data: existing, error: existingError } = await db
+      .from("products").select("id,name,category,stock").eq("source", "feria");
+    if (existingError) throw existingError;
+    const before = new Map<string, Row>(existing.map((p: Row) => [p.id, p]));
+
     if (rows.length) {
       const { error: upsertError } = await db.from("products").upsert(rows);
       if (upsertError) throw upsertError;
     }
-    await syncCategories(db, rows.map((r) => r.category).filter((c): c is string => !!c));
+    const newCategories = await syncCategories(db, rows.map((r) => r.category).filter((c): c is string => !!c));
+    const summary = summarize(before, rows, newCategories);
 
-    await db.from("sync_log").insert({ ok: true, product_count: rows.length, deactivated_count: 0 });
-    return Response.json({ ok: true, products: rows.length });
+    await db.from("sync_log").insert({ ok: true, product_count: rows.length, deactivated_count: 0, summary });
+    return Response.json({ ok: true, products: rows.length, counts: summary.counts });
   } catch (err) {
     const message = err instanceof Error ? err.message : JSON.stringify(err);
     await db.from("sync_log").insert({ ok: false, error: message });

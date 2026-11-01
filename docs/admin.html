@@ -8,13 +8,13 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=559398">
-  <script src="theme.js?v=559398"></script>
-  <script src="config.js?v=559398"></script>
+  <link rel="stylesheet" href="styles.css?v=559838">
+  <script src="theme.js?v=559838"></script>
+  <script src="config.js?v=559838"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-  <script src="multiselect.js?v=559398"></script>
-  <script src="catalog.js?v=559398"></script>
-  <script src="admin.js?v=559398" defer></script>
+  <script src="multiselect.js?v=559838"></script>
+  <script src="catalog.js?v=559838"></script>
+  <script src="admin.js?v=559838" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -52,6 +52,8 @@
   </form>
 
   <main class="wrap" id="app" hidden>
+    <section class="sync-banner" id="sync-banner" hidden aria-live="polite"></section>
+
     <nav class="admin-tabs" aria-label="Secciones">
       <button type="button" data-tab="products" aria-pressed="true">Productos</button>
       <button type="button" data-tab="categories" aria-pressed="false">Categorías</button>
@@ -68,6 +70,29 @@
       <ul class="category-list" id="category-list"></ul>
     </section>
 
+    <div class="share-bar" id="share-bar" hidden>
+      <span id="share-count">0 seleccionados</span>
+      <button type="button" class="btn" id="share-cancel">Cancelar</button>
+      <button type="button" class="btn btn-primary" id="share-open" disabled>Compartir</button>
+    </div>
+
+    <dialog class="share-dialog" id="share-dialog" aria-labelledby="share-title">
+      <div class="icon-picker-head">
+        <strong id="share-title">Compartir en redes</strong>
+        <button type="button" class="btn btn-sm" id="share-close" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="share-thumbs" id="share-thumbs"></div>
+      <label class="share-caption">Texto de la publicación
+        <textarea id="share-text" rows="8"></textarea>
+      </label>
+      <p class="sync-note" id="share-hint">Facebook no permite que otras apps escriban el texto por ti: lo copiamos al portapapeles y solo tienes que <strong>mantener presionado y pegar</strong> en tu publicación.</p>
+      <div class="status" id="share-status" aria-live="polite"></div>
+      <div class="form-actions">
+        <button type="button" class="btn" id="share-copy">Copiar texto</button>
+        <button type="button" class="btn btn-primary" id="share-go" disabled>Preparando fotos…</button>
+      </div>
+    </dialog>
+
     <dialog class="icon-picker" id="icon-picker" aria-labelledby="icon-picker-title">
       <div class="icon-picker-head">
         <strong id="icon-picker-title">Elige un ícono</strong>
@@ -83,6 +108,7 @@
           <div class="search-line">
             <input id="filter" class="search" type="search" placeholder="Buscar producto…" autocomplete="off">
             <button class="btn btn-primary" type="button" id="new-product">+ Nuevo</button>
+            <button class="btn btn-icon-text" type="button" id="share-mode" aria-pressed="false" title="Seleccionar productos para compartir en redes"></button>
           </div>
           <div class="filter-line">
             <div class="filter-ms" id="brand-ms"></div>

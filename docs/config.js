@@ -11,5 +11,6 @@ window.STORE_CONFIG = {
     phone: "+53 5676 1513",
     address: "Calle Holguín #24 entre Carretera Central y Camilo Cienfuegos",
     facebook: "https://www.facebook.com/profile.php?id=61591706926020",
+    url: "https://allinone-holguin.pages.dev",
   },
 };

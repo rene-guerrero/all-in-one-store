@@ -501,3 +501,60 @@ dialog.icon-picker::backdrop { background: rgb(5 10 15 / 60%); }
   dialog.icon-picker { margin: auto 0 0; width: 100%; max-width: 100%; max-height: 80vh; border-radius: 18px 18px 0 0; }
   .icon-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
+
+/* Admin: daily SoftCell integration summary */
+.sync-banner {
+  margin-bottom: 12px; padding: 12px 14px; border-radius: var(--radius);
+  border: 1px solid var(--brand); background: var(--brand-soft); display: grid; gap: 10px;
+}
+.sync-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.sync-head small { display: block; color: var(--muted); margin-top: 2px; }
+.sync-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.sync-pill {
+  padding: 3px 10px; border-radius: 999px; font-size: 0.8rem; font-weight: 600;
+  background: var(--surface); border: 1px solid var(--border); color: var(--text);
+}
+.sync-pill.ok { color: var(--accent); border-color: currentColor; }
+.sync-pill.warn { color: var(--danger); border-color: currentColor; }
+.sync-details summary { cursor: pointer; font-weight: 600; color: var(--brand); }
+.sync-details h4 { margin: 12px 0 4px; font-size: 0.85rem; }
+.sync-details ul { margin: 0; padding-left: 18px; max-height: 220px; overflow: auto; font-size: 0.85rem; display: grid; gap: 2px; }
+.sync-details small, .sync-empty { color: var(--muted); }
+.sync-empty { margin: 0; font-size: 0.88rem; }
+
+/* Admin: share products to social networks */
+.btn-icon-text { flex: none; border-radius: 12px; gap: 6px; }
+.btn-icon-text svg { width: 18px; height: 18px; }
+.btn-icon-text[aria-pressed="true"] { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
+.share-check {
+  width: 24px; height: 24px; flex: none; border-radius: 7px; display: grid; place-items: center;
+  border: 2px solid var(--border); font-weight: 800; font-size: 14px; color: var(--brand-ink);
+}
+.share-check.on { background: var(--brand); border-color: var(--brand); }
+.product-list li.unshareable button { opacity: 0.4; cursor: not-allowed; }
+.share-bar {
+  position: fixed; left: 50%; bottom: 16px; translate: -50% 0; z-index: 20; width: min(520px, calc(100% - 24px));
+  display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 16px;
+  background: var(--surface); border: 1px solid var(--brand); box-shadow: 0 12px 30px rgb(0 0 0 / 30%);
+}
+.share-bar span { flex: 1; font-weight: 600; font-size: 0.9rem; }
+dialog.share-dialog {
+  width: min(560px, calc(100% - 24px)); max-height: min(720px, calc(100vh - 24px)); padding: 14px;
+  border: 1px solid var(--border); border-radius: 16px; background: var(--surface); color: var(--text);
+  display: none; flex-direction: column; gap: 10px;
+}
+dialog.share-dialog[open] { display: flex; }
+dialog.share-dialog::backdrop { background: rgb(5 10 15 / 60%); }
+.share-thumbs { display: flex; gap: 6px; overflow-x: auto; flex: none; }
+.share-thumbs img { width: 72px; height: 72px; border-radius: 10px; object-fit: cover; flex: none; }
+.share-caption { display: grid; gap: 5px; font-size: 0.85rem; font-weight: 600; color: var(--muted); }
+.share-caption textarea {
+  width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); resize: vertical;
+  background: var(--surface-2); color: var(--text); font: inherit; font-size: 15px; font-weight: 400; line-height: 1.4;
+}
+@media (max-width: 600px) {
+  .btn-icon-text span { display: none; }
+  .btn-icon-text { width: 44px; padding: 0; }
+  dialog.share-dialog { margin: auto 0 0; width: 100%; max-width: 100%; max-height: 92vh; border-radius: 18px 18px 0 0; }
+  .share-bar { bottom: 10px; }
+}
