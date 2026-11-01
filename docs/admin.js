@@ -232,9 +232,13 @@ function renderList() {
     (!brands.size || brands.has(p.brand)) &&
     (!categories.size || categories.has(p.categoryKey)) &&
     (imagesFilter !== "none" || p.product_images.length === 0) &&
-    (imagesFilter !== "some" || p.product_images.length > 0));
+    (imagesFilter !== "some" || p.product_images.length > 0) &&
+    // Share mode only lists products that have photos to share.
+    (!state.sharing || p.product_images.length > 0));
   const withImages = state.products.filter((p) => p.product_images.length).length;
-  $("#list-info").textContent = `${list.length} mostrados · ${withImages}/${state.products.length} con imágenes`;
+  $("#list-info").textContent = state.sharing
+    ? `${list.length} productos con fotos para compartir`
+    : `${list.length} mostrados · ${withImages}/${state.products.length} con imágenes`;
   $("#products").innerHTML = list.map((p) => {
     const first = p.product_images[0];
     const selectable = state.sharing && first;
