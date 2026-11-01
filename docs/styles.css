@@ -142,6 +142,7 @@ a { color: var(--brand); }
 .brand-chip svg { position: absolute; right: 10px; top: 50%; translate: 0 -50%; width: 14px; height: 14px; pointer-events: none; }
 .brand-chip.active select { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
 .brand-chip.active svg { color: var(--brand); }
+.category-chip { display: none; }
 .chips {
   flex: 1; min-width: 0; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none;
   scroll-snap-type: x proximity; scroll-padding-inline: 8px; padding-block: 1px;
@@ -245,9 +246,11 @@ dialog.viewer::backdrop { background: rgb(5 10 15 / 70%); }
   .header-actions .btn-whatsapp { width: 36px; height: 36px; padding: 0; }
   .header-actions .btn-whatsapp .label { display: none; }
   .toolbar .wrap { padding-block: 8px; gap: 8px; }
-  .chip, .brand-chip select { font-size: 0.82rem; padding-block: 6px; }
-  .chip { padding-inline: 11px; gap: 5px; }
-  .brand-chip select { padding-left: 12px; max-width: 120px; }
+  /* Phones: brand and category become two equal dropdowns instead of the chip row. */
+  .chips { display: none; }
+  .category-chip { display: inline-flex; }
+  .brand-chip { flex: 1; min-width: 0; }
+  .brand-chip select { width: 100%; max-width: none; font-size: 0.86rem; padding: 8px 30px 8px 12px; }
 }
 
 /* Admin */

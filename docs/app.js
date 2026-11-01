@@ -99,9 +99,21 @@ function renderFilters() {
     keys.map((k) => chip(k, categoryIcon(k), labels[k], counts[k])).join("");
   updateChipFade();
 
-  const brands = [...new Set(state.products.map((p) => p.brand).filter(Boolean))].sort();
+  $("#category").innerHTML = `<option value="">Categorías (${state.products.length})</option>` +
+    keys.map((k) => `<option value="${escapeHtml(k)}" ${k === state.category ? "selected" : ""}>${escapeHtml(labels[k])} (${counts[k]})</option>`).join("");
+
+  const brands =[...new Set(state.products.map((p) => p.brand).filter(Boolean))].sort();
   $("#brand").innerHTML = '<option value="">Marca</option>' +
     brands.map((b) => `<option ${b === state.brand ? "selected" : ""}>${escapeHtml(b)}</option>`).join("");
+}
+
+// Category chips (desktop) and the category dropdown (phones) stay in sync.
+function setCategory(key) {
+  state.category = key;
+  $("#categories").querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-pressed", c.dataset.category === key));
+  $("#category").value = key;
+  $("#category-chip").classList.toggle("active", !!key);
+  renderGrid();
 }
 
 // Fade whichever edge of the chip row has more chips hidden behind it.
@@ -180,13 +192,12 @@ function bindEvents() {
   });
   $("#categories").addEventListener("scroll", updateChipFade, { passive: true });
   window.addEventListener("resize", updateChipFade);
+  $("#category").addEventListener("change", (e) => setCategory(e.target.value));
   $("#categories").addEventListener("click", (e) => {
     const chip = e.target.closest(".chip");
     if (!chip) return;
-    state.category = chip.dataset.category;
-    $("#categories").querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-pressed", c === chip));
+    setCategory(chip.dataset.category);
     chip.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
-    renderGrid();
   });
   $("#grid").addEventListener("click", (e) => {
     const card = e.target.closest(".card");
