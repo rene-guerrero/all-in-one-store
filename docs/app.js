@@ -12,6 +12,11 @@ const ALL_ICON = svg('<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect
 
 // Empty sets mean "all"; several brands or categories mean "any of these".
 const state = { products: [], categories: new Set(), brands: new Set(), query: "", sort: "novedades", onlyPhotos: false };
+// Cards or compact list; remembered per browser.
+const VIEW_KEY = "aio-view";
+let savedView = "grid";
+try { savedView = localStorage.getItem(VIEW_KEY) === "list" ? "list" : "grid"; } catch { /* storage blocked */ }
+state.view = savedView;
 const brandFilter = createMultiSelect(document.getElementById("brand-ms"), {
   label: "Marca",
   onChange: (values) => { state.brands = values; renderGrid(); },
@@ -153,7 +158,7 @@ function cardHtml(p) {
     <button class="card" data-id="${p.id}">
       <div class="card-media">${media}${p.isNew ? '<span class="badge-new">Nuevo</span>' : ""}</div>
       <div class="card-body">
-        <span class="card-category">${categoryIcon(p.categoryKey)}${escapeHtml(p.categoryLabel)}</span>
+        <span class="card-category">${categoryIcon(p.categoryKey)}${escapeHtml(p.categoryLabel)}${p.isNew ? '<span class="new-inline">Nuevo</span>' : ""}</span>
         <span class="card-name">${escapeHtml(p.name)}</span>
         ${p.stock <= 2 ? '<span class="badge-low">Últimas unidades</span>' : ""}
       </div>
@@ -326,6 +331,13 @@ function bindOrder() {
   });
 }
 
+function setView(view, remember = true) {
+  state.view = view;
+  $("#grid").classList.toggle("list-view", view === "list");
+  document.querySelectorAll(".view-toggle [data-view]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.view === view));
+  if (remember) { try { localStorage.setItem(VIEW_KEY, view); } catch { /* storage blocked */ } }
+}
+
 function renderGrid() {
   const list = filtered();
   $("#result-info").textContent = `${list.length} ${list.length === 1 ? "producto" : "productos"}`;
@@ -369,6 +381,10 @@ function openViewer(product) {
 function bindEvents() {
   $("#search").addEventListener("input", (e) => { state.query = e.target.value; renderGrid(); });
   $("#sort").addEventListener("change", (e) => { state.sort = e.target.value; renderGrid(); });
+  document.querySelector(".view-toggle").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-view]");
+    if (btn) setView(btn.dataset.view);
+  });
   $("#only-photos").addEventListener("click", (e) => {
     state.onlyPhotos = !state.onlyPhotos;
     e.currentTarget.setAttribute("aria-pressed", state.onlyPhotos);
@@ -423,6 +439,7 @@ async function init() {
   fillStoreInfo();
   bindEvents();
   bindOrder();
+  setView(state.view, false);
   saveOrder();
   $("#grid").innerHTML = Array.from({ length: 8 }, () => '<div class="skeleton"></div>').join("");
   try {
