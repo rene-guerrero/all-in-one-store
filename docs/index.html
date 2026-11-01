@@ -3,8 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Feria SoftCell · Catálogo</title>
-  <meta name="description" content="Covers, micas, cables y accesorios para celulares en Holguín. Consulta disponibilidad por WhatsApp.">
+  <title>All in One · Catálogo</title>
+  <meta name="description" content="All in One: covers, micas, cables y accesorios para celulares en Holguín. Servicio a domicilio. Consulta disponibilidad por WhatsApp.">
+  <meta name="theme-color" content="#4f46e5">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
@@ -14,10 +16,14 @@
 <body>
   <header class="site-header">
     <div class="wrap">
-      <div class="brand-mark" aria-hidden="true">F</div>
+      <img class="brand-logo" src="favicon.svg" alt="" width="48" height="48">
       <div class="brand-text">
-        <h1 data-store="name">Feria SoftCell</h1>
+        <h1 data-store="name">All in One</h1>
         <p data-store="tagline"></p>
+        <span class="delivery">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M2 6h12v10H2zM14 9h4.5l3.5 3.5V16h-8z"/><circle cx="6" cy="17.5" r="1.8"/><circle cx="17.5" cy="17.5" r="1.8"/></svg>
+          <span data-store="delivery"></span>
+        </span>
       </div>
       <div class="header-actions">
         <a class="btn btn-whatsapp" id="header-whatsapp" target="_blank" rel="noopener">
@@ -48,7 +54,8 @@
   <footer class="site-footer">
     <div class="wrap">
       <div><strong>Dirección:</strong> <span data-store="address"></span></div>
-      <div><strong>Horario:</strong> <span data-store="hours"></span></div>
+      <div><strong>Teléfono:</strong> <a id="footer-phone"></a></div>
+      <div class="footer-delivery" data-store="delivery"></div>
       <div><a id="footer-facebook" target="_blank" rel="noopener">Facebook</a></div>
     </div>
   </footer>
@@ -64,7 +71,7 @@
         <div class="card-category" id="viewer-category"></div>
         <h2 id="viewer-title"></h2>
         <span class="availability">Disponible</span>
-        <p class="note">Escríbenos por WhatsApp para precio y disponibilidad. Inventario actualizado diariamente.</p>
+        <p class="note">Escríbenos por WhatsApp para precio y disponibilidad. Tenemos servicio a domicilio. Inventario actualizado diariamente.</p>
         <a class="btn btn-whatsapp" id="viewer-whatsapp" target="_blank" rel="noopener">Consultar por WhatsApp</a>
       </div>
     </div>

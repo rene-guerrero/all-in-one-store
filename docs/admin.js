@@ -1,4 +1,4 @@
-const { SUPABASE_URL, SUPABASE_ANON_KEY } = window.FERIA_CONFIG;
+const { SUPABASE_URL, SUPABASE_ANON_KEY } = window.STORE_CONFIG;
 const BUCKET = "product-images";
 const MAX_SIDE = 1600;
 const JPEG_QUALITY = 0.85;

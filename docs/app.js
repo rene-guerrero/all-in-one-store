@@ -1,4 +1,4 @@
-const { SUPABASE_URL, SUPABASE_ANON_KEY, STORE } = window.FERIA_CONFIG;
+const { SUPABASE_URL, SUPABASE_ANON_KEY, STORE } = window.STORE_CONFIG;
 const IMAGE_BASE = `${SUPABASE_URL}/storage/v1/object/public/product-images/`;
 const KNOWN_BRANDS = {
   samsung: "Samsung", redmi: "Xiaomi / Redmi", xiaomi: "Xiaomi / Redmi", poco: "Xiaomi / Redmi",
@@ -8,11 +8,26 @@ const KNOWN_BRANDS = {
 };
 
 const ICONS = {
-  phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg>',
   photos: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="m21 16-5-5-8 8"/></svg>',
   prev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>',
   next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>',
 };
+
+// Keyed by the accent-free, lowercase category name.
+const svg = (body) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+const CATEGORY_ICONS = {
+  cover: svg('<rect x="6" y="2.5" width="12" height="19" rx="3"/><rect x="8.5" y="5" width="4" height="5" rx="1.3"/>'),
+  micas: svg('<rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M9 10l4-4M9 15l6-6"/>'),
+  cables: svg('<path d="M7 3v3M11 3v3M5.5 6h7v3.5a3.5 3.5 0 0 1-7 0zM9 13v3a4 4 0 0 0 8 0V8a2 2 0 0 1 4 0"/>'),
+  cargadores: svg('<rect x="5" y="7" width="14" height="14" rx="3"/><path d="M9 3v4M15 3v4M12.5 10l-2 3.5h3l-2 3.5"/>'),
+  otg: svg('<path d="M12 2.5V17M12 13l-4-2.5V7.5M12 11.5l4-2V6.5"/><circle cx="12" cy="19" r="2.3"/><circle cx="8" cy="6.3" r="1.2"/><path d="M15 4.5h2v2h-2z"/>'),
+  audifonos: svg('<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4.5" height="7" rx="1.5"/><rect x="16.5" y="14" width="4.5" height="7" rx="1.5"/>'),
+  ventosas: svg('<path d="M12 3v8M4.5 20c0-5 3.3-8.5 7.5-8.5s7.5 3.5 7.5 8.5z"/>'),
+  popsocket: svg('<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.5"/>'),
+  powerbank: svg('<rect x="2.5" y="7" width="16.5" height="10" rx="2"/><path d="M21.5 10.5v3M11.5 9l-2 3h3l-2 3"/>'),
+};
+const DEFAULT_CATEGORY_ICON = svg('<path d="M3 8l9-5 9 5v8l-9 5-9-5zM3 8l9 5 9-5M12 13v8"/>');
+const categoryIcon = (key) => CATEGORY_ICONS[key] || DEFAULT_CATEGORY_ICON;
 
 const state = { products: [], category: "", brand: "", query: "" };
 const $ = (sel) => document.querySelector(sel);
@@ -27,8 +42,10 @@ function brandOf(name) {
 
 function fillStoreInfo() {
   document.querySelectorAll("[data-store]").forEach((el) => { el.textContent = STORE[el.dataset.store] || ""; });
-  $("#header-whatsapp").href = whatsappLink("Hola, vengo del catálogo de Feria SoftCell.");
+  $("#header-whatsapp").href = whatsappLink(`Hola, vengo del catálogo de ${STORE.name}.`);
   $("#footer-facebook").href = STORE.facebook;
+  $("#footer-phone").href = `tel:+${STORE.whatsapp}`;
+  $("#footer-phone").textContent = STORE.phone;
 }
 
 async function loadProducts() {
@@ -96,11 +113,11 @@ function cardHtml(p) {
   const media = p.images.length
     ? `<img src="${escapeHtml(p.images[0])}" alt="${escapeHtml(p.name)}" loading="lazy">` +
       (p.images.length > 1 ? `<span class="photo-count">${ICONS.photos}${p.images.length}</span>` : "")
-    : `<div class="placeholder">${ICONS.phone}</div>`;
+    : `<div class="placeholder">${categoryIcon(p.categoryKey)}</div>`;
   return `<button class="card" data-id="${p.id}">
     <div class="card-media">${media}</div>
     <div class="card-body">
-      <span class="card-category">${escapeHtml(p.categoryLabel)}</span>
+      <span class="card-category">${categoryIcon(p.categoryKey)}${escapeHtml(p.categoryLabel)}</span>
       <span class="card-name">${escapeHtml(p.name)}</span>
       ${p.stock <= 2 ? '<span class="badge-low">Últimas unidades</span>' : ""}
     </div>
@@ -129,13 +146,13 @@ function openViewer(product) {
   current = { product, index: 0 };
   const { images } = product;
   $("#viewer-title").textContent = product.name;
-  $("#viewer-category").textContent = product.categoryLabel;
+  $("#viewer-category").innerHTML = categoryIcon(product.categoryKey) + escapeHtml(product.categoryLabel);
   $("#viewer-whatsapp").href = whatsappLink(`Hola, me interesa: ${product.name}. ¿Precio y disponibilidad?`);
   $("#gallery").innerHTML = images.length
     ? `<img alt="${escapeHtml(product.name)}">` + (images.length > 1
       ? `<button class="gallery-nav prev" aria-label="Foto anterior">${ICONS.prev}</button><button class="gallery-nav next" aria-label="Foto siguiente">${ICONS.next}</button>`
       : "")
-    : `<div class="placeholder">${ICONS.phone}</div>`;
+    : `<div class="placeholder">${categoryIcon(product.categoryKey)}</div>`;
   $("#thumbs").innerHTML = images.length > 1
     ? images.map((src, i) => `<button data-index="${i}" aria-label="Foto ${i + 1}"><img src="${escapeHtml(src)}" alt="" loading="lazy"></button>`).join("")
     : "";
