@@ -31,7 +31,8 @@ function fillStoreInfo() {
   $("#header-whatsapp").href = whatsappLink(`Hola, vengo del catálogo de ${STORE.name}.`);
   $("#footer-facebook").href = STORE.facebook;
   $("#footer-phone").href = `tel:+${STORE.whatsapp}`;
-  $("#footer-phone").textContent = STORE.phone;
+  $("#footer-whatsapp").href = whatsappLink(`Hola, vengo del catálogo de ${STORE.name}.`);
+  $("#footer-address").href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${STORE.address}, Holguín, Cuba`)}`;
 }
 
 async function loadProducts() {

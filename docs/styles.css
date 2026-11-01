@@ -226,12 +226,28 @@ dialog.viewer::backdrop { background: rgb(5 10 15 / 70%); }
   border-top: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 0.88rem;
   box-shadow: 0 -4px 14px rgb(16 24 40 / 8%);
 }
-.site-footer .wrap { padding-block: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 28px; }
-.site-footer strong { color: var(--text); }
-.footer-delivery { color: var(--brand); font-weight: 600; }
+.site-footer .wrap { padding-block: 8px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.footer-address {
+  display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--muted); text-decoration: none;
+}
+.footer-address:hover { color: var(--text); }
+.footer-address svg { width: 18px; height: 18px; flex: none; color: var(--brand); }
+.footer-address span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.footer-links { display: flex; align-items: center; gap: 8px; flex: none; }
+.social {
+  height: 36px; min-width: 36px; padding: 0 9px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  text-decoration: none; font-weight: 600; color: #fff;
+}
+.social svg { width: 19px; height: 19px; flex: none; }
+.social.phone { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+.social.whatsapp { background: #25d366; }
+.social.facebook { background: #1877f2; }
+.social:hover { filter: brightness(1.08); }
 @media (max-width: 600px) {
   .site-footer { font-size: 0.8rem; }
-  .site-footer .wrap { padding-block: 8px; gap: 2px 14px; }
+  .site-footer .wrap { padding-block: 6px; gap: 8px; }
+  .social-label { display: none; }
+  .social { width: 36px; padding: 0; }
 }
 
 @media (max-width: 600px) {
@@ -572,3 +588,15 @@ dialog.share-dialog::backdrop { background: rgb(5 10 15 / 60%); }
   .sort-select { font-size: 0; gap: 0; }
   .sort-select select { font-size: 0.86rem; }
 }
+
+/* Phones: keep the count, "Fotos" and sort on one row */
+@media (max-width: 600px) {
+  .result-bar { gap: 8px; }
+  .result-info { white-space: nowrap; font-size: 0.85rem; }
+  .result-actions { flex-wrap: nowrap; gap: 6px; }
+  .photo-toggle { padding: 6px 10px; }
+  .photo-toggle-long { display: none; }
+  .photo-toggle .photo-toggle-short { display: inline; }
+  .sort-select select { padding: 6px 8px; }
+}
+.photo-toggle-short { display: none; }
