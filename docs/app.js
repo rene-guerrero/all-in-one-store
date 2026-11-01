@@ -32,7 +32,9 @@ function fillStoreInfo() {
   $("#footer-facebook").href = STORE.facebook;
   $("#footer-phone").href = `tel:+${STORE.whatsapp}`;
   $("#footer-whatsapp").href = whatsappLink(`Hola, vengo del catálogo de ${STORE.name}.`);
-  $("#footer-address").href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${STORE.address}, Holguín, Cuba`)}`;
+  // Coordinates pin the exact shop; the street address alone lands in the wrong place on Google Maps.
+  const mapQuery = STORE.location || `${STORE.address}, Holguín, Cuba`;
+  $("#footer-address").href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`;
 }
 
 async function loadProducts() {

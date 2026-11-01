@@ -12,5 +12,7 @@ window.STORE_CONFIG = {
     address: "Calle Holguín #24 entre Carretera Central y Camilo Cienfuegos",
     facebook: "https://www.facebook.com/profile.php?id=61591706926020",
     url: "https://allinone-holguin.pages.dev",
+    // Exact shop location for the footer map link (latitude, longitude).
+    location: "20.882700475551204,-76.26296121841612",
   },
 };
