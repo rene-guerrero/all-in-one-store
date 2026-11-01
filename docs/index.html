@@ -9,12 +9,12 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=559838">
+  <link rel="stylesheet" href="styles.css?v=560080">
   <script src="theme.js?v=559838"></script>
   <script src="config.js?v=559838"></script>
   <script src="multiselect.js?v=559838"></script>
   <script src="catalog.js?v=559838"></script>
-  <script src="app.js?v=559838" defer></script>
+  <script src="app.js?v=560080" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -58,12 +58,18 @@
   <main class="wrap">
     <div class="result-bar">
       <p class="result-info" id="result-info" aria-live="polite"></p>
+      <div class="result-actions">
+      <button type="button" class="photo-toggle" id="only-photos" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+        Con fotos
+      </button>
       <label class="sort-select">Ordenar
         <select id="sort">
           <option value="novedades">Novedades</option>
           <option value="az">A–Z</option>
         </select>
       </label>
+      </div>
     </div>
     <div class="grid" id="grid"></div>
   </main>

@@ -9,7 +9,7 @@ const ICONS = {
 const ALL_ICON = svg('<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>');
 
 // Empty sets mean "all"; several brands or categories mean "any of these".
-const state = { products: [], categories: new Set(), brands: new Set(), query: "", sort: "novedades" };
+const state = { products: [], categories: new Set(), brands: new Set(), query: "", sort: "novedades", onlyPhotos: false };
 const brandFilter = createMultiSelect(document.getElementById("brand-ms"), {
   label: "Marca",
   onChange: (values) => { state.brands = values; renderGrid(); },
@@ -133,6 +133,7 @@ function filtered() {
   return state.products.filter((p) =>
     (!state.categories.size || state.categories.has(p.categoryKey)) &&
     (!state.brands.size || state.brands.has(p.brand)) &&
+    (!state.onlyPhotos || p.images.length > 0) &&
     terms.every((t) => p.search.includes(t)))
     .sort(SORTS[state.sort] || SORTS.novedades);
 }
@@ -194,6 +195,11 @@ function openViewer(product) {
 function bindEvents() {
   $("#search").addEventListener("input", (e) => { state.query = e.target.value; renderGrid(); });
   $("#sort").addEventListener("change", (e) => { state.sort = e.target.value; renderGrid(); });
+  $("#only-photos").addEventListener("click", (e) => {
+    state.onlyPhotos = !state.onlyPhotos;
+    e.currentTarget.setAttribute("aria-pressed", state.onlyPhotos);
+    renderGrid();
+  });
   $("#categories").addEventListener("scroll", updateChipFade, { passive: true });
   window.addEventListener("resize", updateChipFade);
   // Chips toggle on and off so several categories can be combined; "Todo" clears them.
