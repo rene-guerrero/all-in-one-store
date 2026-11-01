@@ -14,6 +14,16 @@ const publicUrl = (path) => sb.storage.from(BUCKET).getPublicUrl(path).data.publ
 
 const state = { products: [], selectedId: null };
 
+const icon = (body) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+const ICON = {
+  back: icon('<path d="m15 18-6-6 6-6"/>'),
+  left: icon('<path d="m15 18-6-6 6-6"/>'),
+  right: icon('<path d="m9 18 6-6-6-6"/>'),
+  trash: icon('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'),
+  camera: icon('<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>'),
+  gallery: icon('<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="m21 16-5-5-9 9"/>'),
+};
+
 /* Auth */
 async function showForSession(session) {
   $("#login").hidden = !!session;
@@ -102,7 +112,7 @@ $("#set-password").addEventListener("submit", async (e) => {
 async function loadProducts() {
   const { data, error } = await sb
     .from("products")
-    .select("id,name,category,stock,active,product_images(id,path,sort_order)")
+    .select("id,name,category,stock,active,hidden,product_images(id,path,sort_order)")
     .order("name");
   if (error) {
     $("#list-info").textContent = `Error: ${error.message}`;
@@ -128,8 +138,8 @@ function renderList() {
     const first = p.product_images[0];
     return `<li><button data-id="${p.id}" aria-current="${p.id === state.selectedId}">
       ${first ? `<img class="mini" src="${escapeHtml(publicUrl(first.path))}" alt="" loading="lazy">` : '<span class="mini"></span>'}
-      <span class="meta"><div>${escapeHtml(p.name)}</div><small>${escapeHtml(p.category || "")} · stock ${p.stock}</small></span>
-      <span class="tag ${p.product_images.length ? "ok" : ""}">${p.product_images.length} img</span>
+      <span class="meta"><div>${escapeHtml(p.name)}</div><small>${escapeHtml(p.category || "")} · stock ${p.stock}${p.hidden ? " · oculto" : ""}</small></span>
+      <span class="tag ${p.product_images.length ? "ok" : ""}">${p.product_images.length} ${p.product_images.length === 1 ? "foto" : "fotos"}</span>
     </button></li>`;
   }).join("");
 }
@@ -139,10 +149,30 @@ $("#filter-images").addEventListener("change", renderList);
 $("#products").addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-id]");
   if (!btn) return;
-  state.selectedId = btn.dataset.id;
+  openEditor(btn.dataset.id);
+});
+
+/* On phones the list and the editor are separate screens; the back button returns to the list. */
+const isNarrow = () => matchMedia("(max-width: 860px)").matches;
+
+function openEditor(id) {
+  state.selectedId = id;
   renderList();
   renderEditor();
-});
+  $("#admin-layout").classList.add("editing");
+  if (isNarrow()) {
+    history.pushState({ editor: id }, "");
+    window.scrollTo(0, 0);
+  }
+}
+
+function closeEditor() {
+  $("#admin-layout").classList.remove("editing");
+  const row = $(`#products button[data-id="${state.selectedId}"]`);
+  if (row && isNarrow()) row.scrollIntoView({ block: "center" });
+}
+
+window.addEventListener("popstate", closeEditor);
 
 /* Editor */
 const selected = () => state.products.find((p) => p.id === state.selectedId);
@@ -151,32 +181,51 @@ function renderEditor() {
   const p = selected();
   if (!p) return;
   const images = p.product_images;
+  const hiddenNote = p.hidden ? " · oculto en la tienda" : p.stock > 0 ? "" : " · sin stock, no se muestra en la tienda";
   $("#editor").innerHTML = `
+    <button class="btn btn-sm back-btn" id="back" type="button">${ICON.back} Productos</button>
     <div>
       <div class="card-category">${escapeHtml(p.category || "")}</div>
       <h2>${escapeHtml(p.name)}</h2>
-      <small class="status">Stock: ${p.stock}${p.stock > 0 ? "" : " · no se muestra en la tienda"}</small>
+      <small class="status">Stock: ${p.stock}${hiddenNote}</small>
     </div>
-    <label class="dropzone" id="dropzone">
-      <input type="file" id="files" accept="image/*" multiple hidden>
-      <strong>Arrastra fotos aquí</strong> o haz clic para elegir.<br>
-      <small>Se reducen a ${MAX_SIDE}px antes de subir. La primera foto es la portada.</small>
-    </label>
-    <div class="status" id="upload-status"></div>
+    <div class="dropzone" id="dropzone">
+      <div class="upload-buttons">
+        <label class="btn btn-primary upload-btn">${ICON.camera}<span>Tomar foto</span>
+          <input type="file" accept="image/*" capture="environment" hidden data-upload>
+        </label>
+        <label class="btn upload-btn">${ICON.gallery}<span>Galería</span>
+          <input type="file" accept="image/*" multiple hidden data-upload>
+        </label>
+      </div>
+      <small class="drop-hint">En computadora también puedes arrastrar fotos aquí.</small>
+    </div>
+    <ul class="upload-queue" id="upload-queue"></ul>
+    <div class="photos-head">
+      <strong>${images.length ? `${images.length} ${images.length === 1 ? "foto" : "fotos"}` : "Sin fotos todavía"}</strong>
+      ${images.length > 1 ? "<small>La primera es la portada. Usa ◀ ▶ para ordenar.</small>" : ""}
+    </div>
     <div class="image-grid">
       ${images.map((img, i) => `
         <div class="image-tile">
-          <img src="${escapeHtml(publicUrl(img.path))}" alt="Foto ${i + 1}" loading="lazy">
+          <div class="image-wrap">
+            <img src="${escapeHtml(publicUrl(img.path))}" alt="Foto ${i + 1}" loading="lazy">
+            ${i === 0 ? '<span class="cover-badge">Portada</span>' : ""}
+          </div>
           <div class="actions">
-            <button class="btn btn-sm" data-move="-1" data-image="${img.id}" ${i === 0 ? "disabled" : ""} aria-label="Mover antes">←</button>
-            <button class="btn btn-sm btn-danger" data-delete="${img.id}">Eliminar</button>
-            <button class="btn btn-sm" data-move="1" data-image="${img.id}" ${i === images.length - 1 ? "disabled" : ""} aria-label="Mover después">→</button>
+            <button class="icon-btn" data-move="-1" data-image="${img.id}" ${i === 0 ? "disabled" : ""} aria-label="Mover antes">${ICON.left}</button>
+            <button class="icon-btn danger" data-delete="${img.id}" aria-label="Eliminar foto">${ICON.trash}</button>
+            <button class="icon-btn" data-move="1" data-image="${img.id}" ${i === images.length - 1 ? "disabled" : ""} aria-label="Mover después">${ICON.right}</button>
           </div>
         </div>`).join("")}
     </div>`;
 
   const dz = $("#dropzone");
-  $("#files").addEventListener("change", (e) => uploadFiles([...e.target.files]));
+  $("#back").addEventListener("click", () => (history.state?.editor ? history.back() : closeEditor()));
+  dz.querySelectorAll("[data-upload]").forEach((input) => input.addEventListener("change", (e) => {
+    uploadFiles([...e.target.files]);
+    e.target.value = "";
+  }));
   dz.addEventListener("dragover", (e) => { e.preventDefault(); dz.classList.add("drag"); });
   dz.addEventListener("dragleave", () => dz.classList.remove("drag"));
   dz.addEventListener("drop", (e) => {
@@ -193,25 +242,63 @@ $("#editor").addEventListener("click", async (e) => {
   if (move) await moveImage(move.dataset.image, Number(move.dataset.move));
 });
 
-async function resizeImage(file) {
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  return new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITY));
+// Phones can hand over formats createImageBitmap can't decode (e.g. HEIC outside Safari);
+// an <img> element is the fallback decoder.
+async function decodeImage(file) {
+  try {
+    return await createImageBitmap(file, { imageOrientation: "from-image" });
+  } catch {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      return img;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
 }
+
+async function resizeImage(file) {
+  const source = await decodeImage(file);
+  const width = source.naturalWidth || source.width;
+  const height = source.naturalHeight || source.height;
+  const scale = Math.min(1, MAX_SIDE / Math.max(width, height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(width * scale);
+  canvas.height = Math.round(height * scale);
+  canvas.getContext("2d").drawImage(source, 0, 0, canvas.width, canvas.height);
+  source.close?.();
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITY));
+  if (!blob) throw new Error("No se pudo procesar la imagen");
+  return blob;
+}
+
+const QUEUE_LABELS = { waiting: "En espera", working: "Subiendo…", done: "Lista", error: "Error" };
 
 async function uploadFiles(files) {
   const p = selected();
   if (!p || !files.length) return;
-  const status = $("#upload-status");
-  status.classList.remove("error");
-  let order = p.product_images.reduce((max, img) => Math.max(max, img.sort_order), -1);
+  const queue = $("#upload-queue");
+  const rows = files.map((file) => {
+    const li = document.createElement("li");
+    li.className = "waiting";
+    li.innerHTML = `<img alt=""><span class="name"></span><span class="state">${QUEUE_LABELS.waiting}</span>`;
+    li.querySelector("img").src = URL.createObjectURL(file);
+    li.querySelector(".name").textContent = file.name || "foto";
+    queue.append(li);
+    return li;
+  });
+  const setRow = (li, stateName, message) => {
+    li.className = stateName;
+    li.querySelector(".state").textContent = message || QUEUE_LABELS[stateName];
+  };
 
+  let order = p.product_images.reduce((max, img) => Math.max(max, img.sort_order), -1);
+  let failures = 0;
   for (const [i, file] of files.entries()) {
-    status.textContent = `Subiendo ${i + 1} de ${files.length}…`;
+    setRow(rows[i], "working");
     try {
       const blob = await resizeImage(file);
       const path = `${p.id}/${crypto.randomUUID()}.jpg`;
@@ -225,15 +312,18 @@ async function uploadFiles(files) {
         throw rowErr;
       }
       p.product_images.push(data);
+      setRow(rows[i], "done");
     } catch (err) {
-      status.textContent = `Error con ${file.name}: ${err.message}`;
-      status.classList.add("error");
-      break;
+      failures++;
+      setRow(rows[i], "error", `Error: ${err.message}`);
     }
   }
+  rows.filter((li) => li.classList.contains("done")).forEach((li) => URL.revokeObjectURL(li.querySelector("img").src));
   renderList();
+  // Keep failed rows visible so the admin can see what didn't upload.
+  const failedRows = rows.filter((li) => li.classList.contains("error"));
   renderEditor();
-  if (!$("#upload-status").classList.contains("error")) $("#upload-status").textContent = "Listo.";
+  if (failures) $("#upload-queue").append(...failedRows);
 }
 
 async function deleteImage(imageId) {

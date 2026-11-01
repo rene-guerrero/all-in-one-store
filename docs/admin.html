@@ -8,18 +8,18 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=62a9440">
-  <script src="theme.js?v=62a9440"></script>
-  <script src="config.js?v=62a9440"></script>
+  <link rel="stylesheet" href="styles.css?v=555333">
+  <script src="theme.js?v=555333"></script>
+  <script src="config.js?v=555333"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-  <script src="admin.js?v=62a9440" defer></script>
+  <script src="admin.js?v=555333" defer></script>
 </head>
 <body>
   <header class="site-header">
     <div class="wrap">
       <img class="brand-logo" src="favicon.svg" alt="" width="36" height="36">
       <div class="brand-text">
-        <h1>Admin de imágenes</h1>
+        <h1>Admin</h1>
         <div class="brand-sub"><p id="who">All in One</p></div>
       </div>
       <div class="header-actions">
@@ -50,15 +50,17 @@
   </form>
 
   <main class="wrap" id="app" hidden>
-    <div class="admin-layout">
-      <section class="panel">
+    <div class="admin-layout" id="admin-layout">
+      <section class="panel list-panel">
         <div class="panel-head">
-          <input id="filter" class="search" type="search" placeholder="Buscar producto…" autocomplete="off">
-          <select id="filter-images" class="select">
-            <option value="">Todos los productos</option>
-            <option value="none">Sin imágenes</option>
-            <option value="some">Con imágenes</option>
-          </select>
+          <div class="filter-line">
+            <input id="filter" class="search" type="search" placeholder="Buscar producto…" autocomplete="off">
+            <select id="filter-images" class="select" aria-label="Filtrar por fotos">
+              <option value="">Todos</option>
+              <option value="none">Sin fotos</option>
+              <option value="some">Con fotos</option>
+            </select>
+          </div>
           <small class="status" id="list-info"></small>
         </div>
         <ul class="product-list" id="products"></ul>
