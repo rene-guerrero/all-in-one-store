@@ -4,12 +4,30 @@ const KNOWN_BRANDS = {
   samsung: "Samsung", redmi: "Xiaomi / Redmi", xiaomi: "Xiaomi / Redmi", poco: "Xiaomi / Redmi",
   iphone: "iPhone", tecno: "Tecno", moto: "Motorola", motorola: "Motorola", alcatel: "Alcatel",
   honor: "Honor", huawei: "Huawei", zte: "ZTE", infinix: "Infinix", oppo: "Oppo", realme: "Realme",
-  vivo: "Vivo", nokia: "Nokia", google: "Google Pixel", pixel: "Google Pixel", itel: "Itel",
+  vivo: "Vivo", nokia: "Nokia", google: "Google Pixel", pixel: "Google Pixel", itel: "Itel", lg: "LG",
 };
 
-// Brand is read from the first word of the product name; accessories have none.
-function brandOf(name) {
-  return KNOWN_BRANDS[(name || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().split(/[\s/]+/)[0]] || "";
+// Model codes only one brand uses, for names that never say the brand ("Micas A15", "Micas Note 11").
+const MODEL_PATTERNS = [
+  [/^(?:a|m|j|s|f)\d{1,2}[a-z]?$/, "Samsung"],
+  [/^note$/, "Xiaomi / Redmi"], [/^\d{1,2}c$/, "Xiaomi / Redmi"], [/^\d{1,2}a$/, "Xiaomi / Redmi"],
+];
+
+// Brands a product fits; accessories have none. Each "/" or "-" part can be another phone
+// ("Micas A12 - 9A" → Samsung + Redmi), and a part without its own brand inherits the one named
+// before it ("Redmi A1/A2" stays Redmi, "Samsung A04 4G/ M13 5G" stays Samsung).
+function brandsOf(name) {
+  const found = new Set();
+  let named = null;
+  for (const part of (name || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().split(/[/-]/)) {
+    const words = part.split(/[^a-z0-9+]+/).filter(Boolean);
+    const keyword = words.find((w) => KNOWN_BRANDS[w]);
+    if (keyword) { named = KNOWN_BRANDS[keyword]; found.add(named); continue; }
+    if (named) continue;
+    const hit = words.map((w) => MODEL_PATTERNS.find(([re]) => re.test(w))).find(Boolean);
+    if (hit) found.add(hit[1]);
+  }
+  return [...found];
 }
 
 // Keyed by the accent-free, lowercase category name.

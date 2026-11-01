@@ -82,7 +82,7 @@ async function loadProducts() {
       thumbs,
       categoryKey,
       categoryLabel: categoryLabels[categoryKey],
-      brand: brandOf(p.name),
+      brands: brandsOf(p.name),
       search: fold(`${p.name} ${p.category}`),
       freshAt: new Date(p.fresh_at).getTime(),
       isNew: Date.now() - addedAt < NEW_DAYS * 864e5,
@@ -114,7 +114,7 @@ function renderFilters() {
   categoryFilter.setOptions(keys.map((k) => ({ value: k, label: labels[k], count: counts[k], icon: categoryIcon(k) })));
 
   const brandCounts = {};
-  for (const p of state.products) if (p.brand) brandCounts[p.brand] = (brandCounts[p.brand] || 0) + 1;
+  for (const p of state.products) for (const b of p.brands) brandCounts[b] = (brandCounts[b] || 0) + 1;
   brandFilter.setOptions(Object.keys(brandCounts).sort().map((b) => ({ value: b, label: b, count: brandCounts[b] })));
 }
 
@@ -142,7 +142,7 @@ function filtered() {
   const terms = fold(state.query).split(/\s+/).filter(Boolean);
   return state.products.filter((p) =>
     (!state.categories.size || state.categories.has(p.categoryKey)) &&
-    (!state.brands.size || state.brands.has(p.brand)) &&
+    (!state.brands.size || p.brands.some((b) => state.brands.has(b))) &&
     (!state.onlyPhotos || p.images.length > 0) &&
     terms.every((t) => p.search.includes(t)))
     .sort(SORTS[state.sort] || SORTS.novedades);

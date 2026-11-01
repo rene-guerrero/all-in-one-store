@@ -195,7 +195,7 @@ function decorate(p) {
   return {
     ...p,
     product_images: (p.product_images || []).sort((a, b) => a.sort_order - b.sort_order),
-    brand: brandOf(p.name),
+    brands: brandsOf(p.name),
     categoryKey: fold(p.category).trim() || "otros",
   };
 }
@@ -216,7 +216,7 @@ function renderFilterOptions() {
     .map(([key, c]) => ({ value: key, label: c.label, count: c.count, icon: categoryIcon(key) })));
 
   const brands = {};
-  for (const p of state.products) if (p.brand) brands[p.brand] = (brands[p.brand] || 0) + 1;
+  for (const p of state.products) for (const b of p.brands) brands[b] = (brands[b] || 0) + 1;
   brandFilter.setOptions(Object.keys(brands).sort().map((b) => ({ value: b, label: b, count: brands[b] })));
 }
 
@@ -229,7 +229,7 @@ function renderList() {
   $('[data-clear="filter-images"]').hidden = !imagesFilter;
   const list = state.products.filter((p) =>
     (!query || fold(`${p.name} ${p.category}`).includes(query)) &&
-    (!brands.size || brands.has(p.brand)) &&
+    (!brands.size || p.brands.some((b) => brands.has(b))) &&
     (!categories.size || categories.has(p.categoryKey)) &&
     (imagesFilter !== "none" || p.product_images.length === 0) &&
     (imagesFilter !== "some" || p.product_images.length > 0) &&
