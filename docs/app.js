@@ -168,6 +168,47 @@ function cardHtml(p) {
   </div>`;
 }
 
+/* Usage tracking for the admin "Uso" tab: anonymous events (random per-browser id, no personal data).
+   Browsers where an admin has logged in are marked as staff and not counted. */
+// Only the real store counts: preview and local copies of the site never send events.
+const TRACKING_OFF = location.hostname !== new URL(STORE.url).hostname ||
+  (() => { try { return localStorage.getItem("aio-staff") === "1"; } catch { return false; } })();
+const visitorId = (() => {
+  try {
+    let id = localStorage.getItem("aio-visitor");
+    if (!id) { id = crypto.randomUUID(); localStorage.setItem("aio-visitor", id); }
+    return id;
+  } catch { return crypto.randomUUID(); }
+})();
+
+function track(type, data = {}) {
+  if (TRACKING_OFF) return;
+  fetch(`${SUPABASE_URL}/rest/v1/store_events`, {
+    method: "POST",
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+    body: JSON.stringify({ visitor: visitorId, type, ...data }),
+    keepalive: true, // still sent when the tap opens WhatsApp and the page goes to the background
+  }).catch(() => { /* stats are best-effort */ });
+}
+
+function trackVisit() {
+  try { if (sessionStorage.getItem("aio-visit")) return; sessionStorage.setItem("aio-visit", "1"); } catch { /* count it anyway */ }
+  const ref = document.referrer ? new URL(document.referrer).hostname : "";
+  track("visit", { meta: { ref, phone: matchMedia("(max-width: 600px)").matches } });
+}
+
+// Searches are logged once the visitor stops typing, once per distinct query per visit.
+let searchTimer, lastSearch = "";
+function trackSearch(query) {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    const q = query.trim().slice(0, 80);
+    if (q.length < 2 || q.toLowerCase() === lastSearch) return;
+    lastSearch = q.toLowerCase();
+    track("search", { query: q, results: filtered().length });
+  }, 1500);
+}
+
 /* Order list (🛒): customers collect products and send them in one WhatsApp message.
    Kept in this browser only (localStorage) as a convenience; no prices, the shop confirms in the chat. */
 const ORDER_KEY = "aio-order";
@@ -213,6 +254,7 @@ function toggleInOrder(id) {
     toast(`Quitado del pedido: ${p.name}`);
   } else {
     order.items[id] = 1;
+    track("add_to_cart", { product_id: id });
     toast(`🛒 Agregado al pedido: ${p.name}`);
   }
   saveOrder();
@@ -318,6 +360,8 @@ function bindOrder() {
       name: form.elements.name.value.trim(), address: form.elements.address.value.trim(),
       note: "", delivery: form.elements.delivery.value,
     });
+    const items = Object.entries(order.items).map(([pid, qty]) => ({ id: pid, name: productById(pid)?.name, qty }));
+    track("whatsapp", { meta: { kind: "order", items, name: form.elements.name.value.trim().slice(0, 60) || null, delivery: form.elements.delivery.value } });
     window.open(whatsappLink(orderMessage(form)), "_blank", "noopener");
     status.textContent = "Se abrió WhatsApp con tu pedido. Cuando lo envíes, puedes vaciar la lista.";
   });
@@ -358,6 +402,7 @@ function showImage(index) {
 
 function openViewer(product) {
   current = { product, index: 0 };
+  track("product_view", { product_id: product.id });
   const { images } = product;
   $("#viewer-title").textContent = product.name;
   $("#viewer-description").textContent = product.description || "";
@@ -379,7 +424,10 @@ function openViewer(product) {
 }
 
 function bindEvents() {
-  $("#search").addEventListener("input", (e) => { state.query = e.target.value; renderGrid(); });
+  $("#search").addEventListener("input", (e) => { state.query = e.target.value; renderGrid(); trackSearch(e.target.value); });
+  $("#header-whatsapp").addEventListener("click", () => track("whatsapp", { meta: { kind: "general", from: "header" } }));
+  $("#footer-whatsapp").addEventListener("click", () => track("whatsapp", { meta: { kind: "general", from: "footer" } }));
+  $("#viewer-whatsapp").addEventListener("click", () => track("whatsapp", { product_id: current.product?.id, meta: { kind: "product" } }));
   $("#sort").addEventListener("change", (e) => { state.sort = e.target.value; renderGrid(); });
   document.querySelector(".view-toggle").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-view]");
@@ -437,6 +485,7 @@ function bindEvents() {
 
 async function init() {
   fillStoreInfo();
+  trackVisit();
   bindEvents();
   bindOrder();
   setView(state.view, false);

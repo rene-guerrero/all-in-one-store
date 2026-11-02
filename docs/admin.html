@@ -8,13 +8,14 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=564627">
+  <link rel="stylesheet" href="styles.css?v=643663">
   <script src="theme.js?v=559838"></script>
   <script src="config.js?v=560499"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
   <script src="multiselect.js?v=559838"></script>
   <script src="catalog.js?v=565114"></script>
-  <script src="admin.js?v=565114" defer></script>
+  <script src="admin.js?v=643663" defer></script>
+  <script src="usage.js?v=643663" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -57,7 +58,64 @@
     <nav class="admin-tabs" aria-label="Secciones">
       <button type="button" data-tab="products" aria-pressed="true">Productos</button>
       <button type="button" data-tab="categories" aria-pressed="false">Categorías</button>
+      <button type="button" data-tab="usage" aria-pressed="false">Uso</button>
+      <button type="button" data-tab="activity" aria-pressed="false">Actividad</button>
     </nav>
+
+    <section class="usage-panel" id="usage-panel" hidden>
+      <div class="usage-toolbar">
+        <div class="seg" id="usage-range" role="group" aria-label="Periodo">
+          <button type="button" data-days="1" aria-pressed="false">Hoy</button>
+          <button type="button" data-days="7" aria-pressed="true">7 días</button>
+          <button type="button" data-days="30" aria-pressed="false">30 días</button>
+          <button type="button" data-days="90" aria-pressed="false">90 días</button>
+        </div>
+        <small class="usage-note">No cuenta las visitas de los administradores.</small>
+      </div>
+      <div class="status" id="usage-status" aria-live="polite"></div>
+      <div class="kpis" id="usage-kpis"></div>
+      <div class="panel usage-card" id="usage-daily-card">
+        <h3>Visitantes por día</h3>
+        <div class="bar-chart" id="usage-daily"></div>
+      </div>
+      <div class="usage-grid">
+        <div class="panel usage-card">
+          <h3>Productos más vistos</h3>
+          <ol class="rank" id="usage-products"></ol>
+        </div>
+        <div class="panel usage-card">
+          <h3>Lo más buscado</h3>
+          <ol class="rank" id="usage-searches"></ol>
+        </div>
+      </div>
+      <div class="panel usage-card to-buy">
+        <h3>🛍️ Para comprar: lo buscan y no lo tienes</h3>
+        <p class="usage-help">Búsquedas que no encontraron nada disponible en la tienda (no lo tienes o está agotado). Lo más buscado primero.</p>
+        <ol class="rank" id="usage-to-buy"></ol>
+      </div>
+      <div class="panel usage-card">
+        <h3>Contactos por WhatsApp</h3>
+        <p class="usage-help">Cada vez que alguien tocó un botón de WhatsApp en la tienda. Quién es exactamente lo ves en tu WhatsApp; aquí ves sobre qué escribió.</p>
+        <ul class="contacts" id="usage-contacts"></ul>
+      </div>
+    </section>
+
+    <section class="panel activity-panel" id="activity-panel" hidden>
+      <div class="activity-toolbar">
+        <label class="activity-sort">Ordenar
+          <select id="activity-sort" class="select">
+            <option value="newest">Más recientes</option>
+            <option value="oldest">Más antiguos</option>
+            <option value="actor">Por admin</option>
+          </select>
+        </label>
+        <div class="filter-ms" id="activity-actor-ms"></div>
+        <div class="filter-ms" id="activity-type-ms"></div>
+      </div>
+      <div class="status" id="activity-status" aria-live="polite"></div>
+      <div class="activity-feed" id="activity-feed"></div>
+      <button type="button" class="btn activity-more" id="activity-more" hidden>Cargar más</button>
+    </section>
 
     <section class="panel categories-panel" id="categories-panel" hidden>
       <form class="category-add" id="category-add">
@@ -125,7 +183,12 @@
       </section>
 
       <section class="panel editor" id="editor">
-        <p class="status">Elige un producto de la lista para subir o editar sus imágenes.</p>
+        <div class="editor-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3M9 8h6M9 11h4"/></svg>
+          <h2>Elige un producto</h2>
+          <p>Selecciónalo en la lista para editar sus datos y fotos, o crea uno nuevo.</p>
+          <button class="btn btn-primary" type="button" onclick="document.getElementById('new-product').click()">+ Nuevo producto</button>
+        </div>
       </section>
     </div>
   </main>

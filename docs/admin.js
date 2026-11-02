@@ -43,6 +43,8 @@ async function showForSession(session) {
     return;
   }
   $("#app").hidden = false;
+  // This browser belongs to staff: the store won't count its visits in the Uso tab.
+  try { localStorage.setItem("aio-staff", "1"); } catch { /* storage blocked */ }
   await Promise.all([loadCategories(), loadProducts()]);
   renderCategories();
   loadSyncSummary();
@@ -570,12 +572,190 @@ document.querySelector(".admin-tabs").addEventListener("click", (e) => {
   const tab = e.target.closest("[data-tab]");
   if (!tab) return;
   document.querySelectorAll(".admin-tabs [data-tab]").forEach((b) => b.setAttribute("aria-pressed", b === tab));
-  const showCategories = tab.dataset.tab === "categories";
-  if (showCategories && state.sharing) setSharing(false);
-  $("#categories-panel").hidden = !showCategories;
-  $("#admin-layout").hidden = showCategories;
-  if (showCategories) renderCategories();
+  const which = tab.dataset.tab;
+  if (which !== "products" && state.sharing) setSharing(false);
+  $("#admin-layout").hidden = which !== "products";
+  $("#categories-panel").hidden = which !== "categories";
+  $("#activity-panel").hidden = which !== "activity";
+  $("#usage-panel").hidden = which !== "usage";
+  if (which === "usage") loadUsage();
+  if (which === "categories") renderCategories();
+  if (which === "activity") loadActivity();
 });
+
+/* Actividad: store log written by database triggers (activity_log). */
+const ACTIVITY_PAGE = 100;
+const activity = { rows: [], offset: 0, done: false, actors: [] };
+const ENTITY_LABELS = { product: "Productos", category: "Categorías", photo: "Fotos", integration: "Integración SoftCell" };
+const actorFilter = createMultiSelect($("#activity-actor-ms"), { label: "Admin", onChange: () => loadActivity() });
+const typeFilter = createMultiSelect($("#activity-type-ms"), { label: "Tipo", onChange: () => loadActivity() });
+typeFilter.setOptions(Object.entries(ENTITY_LABELS).map(([value, label]) => ({ value, label })));
+$("#activity-sort").addEventListener("change", () => loadActivity());
+$("#activity-more").addEventListener("click", () => loadActivity(true));
+
+const ACTIVITY_ICONS = {
+  product: icon('<rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>'),
+  category: icon('<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>'),
+  photo: icon('<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="m21 16-5-5-8 8"/>'),
+  integration: icon('<path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3"/><path d="M18 3v4h-4M6 21v-4h4"/>'),
+};
+
+async function loadActivity(more = false) {
+  if (!more) { activity.rows = []; activity.offset = 0; activity.done = false; }
+  const sort = $("#activity-sort").value;
+  let q = sb.from("activity_log").select("*");
+  const actors = actorFilter.selected, types = typeFilter.selected;
+  if (actors.size) q = q.in("actor_email", [...actors]);
+  if (types.size) q = q.in("entity", [...types]);
+  q = sort === "actor"
+    ? q.order("actor_kind", { ascending: true }).order("actor_email", { ascending: true }).order("at", { ascending: false })
+    : q.order("at", { ascending: sort === "oldest" });
+  $("#activity-status").textContent = more ? "Cargando…" : "";
+  const { data, error } = await q.range(activity.offset, activity.offset + ACTIVITY_PAGE - 1);
+  if (error) {
+    $("#activity-status").textContent = `No se pudo cargar la actividad: ${error.message}`;
+    return;
+  }
+  activity.rows.push(...data);
+  activity.offset += data.length;
+  activity.done = data.length < ACTIVITY_PAGE;
+  $("#activity-status").textContent = "";
+  if (!activity.actors.length) loadActivityActors();
+  renderActivity();
+}
+
+// Admin filter options: everyone who appears in the log.
+async function loadActivityActors() {
+  const { data } = await sb.from("activity_log").select("actor_email,actor_kind").limit(5000);
+  const seen = new Map();
+  for (const r of data || []) if (r.actor_email) seen.set(r.actor_email, r.actor_kind);
+  activity.actors = [...seen.keys()];
+  actorFilter.setOptions([...seen].sort((a, b) => (a[1] === b[1] ? a[0].localeCompare(b[0]) : a[1] === "integration" ? 1 : -1))
+    .map(([email]) => ({ value: email, label: actorLabel(email) })));
+}
+
+const actorLabel = (email) => (email || "Alguien").includes("@") ? email.split("@")[0] : email;
+const quote = (s) => `«${escapeHtml(s || "")}»`;
+
+function changeChips(changes) {
+  const chips = [];
+  for (const [field, [from, to]] of Object.entries(changes || {})) {
+    if (field === "stock") chips.push(`stock ${from} → ${to}`);
+    else if (field === "hidden") chips.push(to ? "visible → oculto" : "oculto → visible");
+    else if (field === "description") chips.push(to ? "descripción actualizada" : "descripción borrada");
+    else if (field === "icon") chips.push("ícono cambiado");
+    else if (field === "category") chips.push(`categoría ${escapeHtml(from || "—")} → ${escapeHtml(to || "—")}`);
+    else if (field === "name") chips.push(`nombre ${escapeHtml(from)} → ${escapeHtml(to)}`);
+  }
+  return chips.map((c) => `<span class="act-chip">${c}</span>`).join("");
+}
+
+function syncSentence(d) {
+  if (!d.ok) return { text: "falló la sincronización", extra: `<span class="act-chip warn">${escapeHtml(d.error || "error")}</span>` };
+  const c = d.summary?.counts;
+  if (!c) return { text: `sincronizó ${d.products ?? "?"} productos`, extra: "" };
+  const parts = [
+    c.added && `${c.added} nuevos`, c.restocked && `${c.restocked} repuestos (+${c.unitsRestocked})`,
+    c.sold && `${c.sold} con ventas (−${c.unitsSold})`, c.changed && `${c.changed} renombrados`,
+    c.categories && `${c.categories} categorías nuevas`, c.missing && `${c.missing} ya no están`,
+  ].filter(Boolean);
+  return {
+    text: `sincronizó ${d.products} productos`,
+    extra: parts.length ? parts.map((p) => `<span class="act-chip">${p}</span>`).join("") : '<span class="act-chip muted">sin cambios</span>',
+    details: parts.length ? syncDetails(d.summary) : "",
+  };
+}
+
+function syncDetails(s) {
+  const e = escapeHtml;
+  const list = (title, items, line) => items?.length ? `<h4>${title}</h4><ul>${items.map((i) => `<li>${line(i)}</li>`).join("")}</ul>` : "";
+  return `<details class="act-details"><summary>Ver detalles</summary>
+    ${list("Nuevos", s.added, (i) => `${e(i.name)} <small>stock ${i.stock}</small>`)}
+    ${list("Repuestos", s.restocked, (i) => `${e(i.name)} <small>${i.from} → ${i.to}</small>`)}
+    ${list("Con ventas", s.sold, (i) => `${e(i.name)} <small>${i.from} → ${i.to}</small>`)}
+    ${list("Renombrados / recategorizados", s.changed, (i) => `${e(i.from)} → ${e(i.to)}`)}
+    ${list("Categorías nuevas", s.categories, (i) => e(i))}
+    ${list("Ya no están en feria-ventas", s.missing, (i) => e(i.name))}
+  </details>`;
+}
+
+function describe(row, count) {
+  const d = row.details || {};
+  const n = quote(row.entity_name);
+  switch (`${row.entity}:${row.action}`) {
+    case "product:created": return { text: `creó el producto ${n}`, extra: d.category ? `<span class="act-chip">${escapeHtml(d.category)} · stock ${d.stock}</span>` : "" };
+    case "product:updated": return { text: `editó ${n}`, extra: changeChips(d.changes) };
+    case "product:deleted": return { text: `eliminó el producto ${n}`, extra: "" };
+    case "category:created": return { text: `creó la categoría ${n}`, extra: "" };
+    case "category:updated": return d.changes?.name
+      ? { text: `renombró la categoría ${quote(d.changes.name[0])} a ${quote(d.changes.name[1])}`, extra: d.changes.icon ? changeChips({ icon: d.changes.icon }) : "" }
+      : { text: `cambió el ícono de ${n}`, extra: "" };
+    case "category:deleted": return { text: `eliminó la categoría ${n}`, extra: "" };
+    case "photo:photo_added": return { text: count > 1 ? `subió ${count} fotos a ${n}` : `subió una foto a ${n}`, extra: "" };
+    case "photo:photo_deleted": return { text: count > 1 ? `eliminó ${count} fotos de ${n}` : `eliminó una foto de ${n}`, extra: "" };
+    case "integration:sync": return syncSentence(d);
+    default: return { text: `${row.action} ${n}`, extra: "" };
+  }
+}
+
+// Several photos uploaded to one product in a row read better as one line.
+function groupPhotos(rows) {
+  const out = [];
+  for (const r of rows) {
+    const last = out.at(-1);
+    if (last && r.entity === "photo" && last.row.entity === "photo" && last.row.action === r.action &&
+        last.row.entity_id === r.entity_id && last.row.actor_email === r.actor_email &&
+        Math.abs(new Date(last.row.at) - new Date(r.at)) < 10 * 60e3) {
+      last.count++;
+      continue;
+    }
+    out.push({ row: r, count: 1 });
+  }
+  return out;
+}
+
+function dayLabel(date) {
+  const d = new Date(date), today = new Date();
+  const days = Math.round((new Date(today.toDateString()) - new Date(d.toDateString())) / 864e5);
+  if (days === 0) return "Hoy";
+  if (days === 1) return "Ayer";
+  return d.toLocaleDateString("es", { weekday: "long", day: "numeric", month: "long", year: d.getFullYear() === today.getFullYear() ? undefined : "numeric" });
+}
+
+function renderActivity() {
+  const sort = $("#activity-sort").value;
+  const items = groupPhotos(activity.rows);
+  if (!items.length) {
+    $("#activity-feed").innerHTML = '<p class="act-empty">Todavía no hay actividad con estos filtros.</p>';
+    $("#activity-more").hidden = true;
+    return;
+  }
+  let html = "", heading = null;
+  for (const { row, count } of items) {
+    const group = sort === "actor" ? actorLabel(row.actor_email) : dayLabel(row.at);
+    if (group !== heading) {
+      if (heading !== null) html += "</ul>";
+      html += `<h3 class="act-group">${escapeHtml(group)}</h3><ul class="act-list">`;
+      heading = group;
+    }
+    const { text, extra, details } = describe(row, count);
+    const when = new Date(row.at);
+    const time = sort === "actor"
+      ? when.toLocaleString("es", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })
+      : when.toLocaleTimeString("es", { hour: "numeric", minute: "2-digit" });
+    html += `<li class="act-item ${row.actor_kind}">
+      <span class="act-icon ${row.entity}">${ACTIVITY_ICONS[row.entity] || ACTIVITY_ICONS.product}</span>
+      <div class="act-body">
+        <p><strong title="${escapeHtml(row.actor_email || "")}">${escapeHtml(actorLabel(row.actor_email))}</strong> ${text}</p>
+        ${extra ? `<div class="act-chips">${extra}</div>` : ""}
+        ${details || ""}
+      </div>
+      <time datetime="${row.at}">${time}</time>
+    </li>`;
+  }
+  $("#activity-feed").innerHTML = html + "</ul>";
+  $("#activity-more").hidden = activity.done;
+}
 
 /* Editor */
 const NEW_ID = "new";
@@ -619,7 +799,7 @@ function renderEditor() {
     bindEditor();
     return;
   }
-  $("#editor").innerHTML = back + productFormHtml(p) + `
+  $("#editor").innerHTML = back + `<div class="editor-cols"><div class="editor-col">` + productFormHtml(p) + `</div><div class="editor-col">
     <h3 class="section-title">Fotos</h3>
     <div class="dropzone" id="dropzone">
       <div class="upload-buttons">
@@ -651,7 +831,7 @@ function renderEditor() {
             <button class="icon-btn" data-move="1" data-image="${img.id}" ${i === images.length - 1 ? "disabled" : ""} aria-label="Mover después">${ICON.right}</button>
           </div>
         </div>`).join("")}
-    </div>`;
+    </div></div></div>`;
 
   bindEditor();
   const dz = $("#dropzone");
