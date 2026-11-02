@@ -625,13 +625,19 @@ async function loadActivity(more = false) {
 }
 
 // Admin filter options: everyone who appears in the log.
+// Admin filter options: every current admin (even with no activity yet), anyone else who appears in
+// the log (e.g. a former admin), and the SoftCell integration last.
 async function loadActivityActors() {
-  const { data } = await sb.from("activity_log").select("actor_email,actor_kind").limit(5000);
+  const [{ data: admins }, { data: logged }] = await Promise.all([
+    sb.rpc("admin_list"),
+    sb.from("activity_log").select("actor_email,actor_kind").limit(5000),
+  ]);
   const seen = new Map();
-  for (const r of data || []) if (r.actor_email) seen.set(r.actor_email, r.actor_kind);
+  for (const a of admins || []) if (a.email) seen.set(a.email, "admin");
+  for (const r of logged || []) if (r.actor_email && !seen.has(r.actor_email)) seen.set(r.actor_email, r.actor_kind);
   activity.actors = [...seen.keys()];
   actorFilter.setOptions([...seen].sort((a, b) => (a[1] === b[1] ? a[0].localeCompare(b[0]) : a[1] === "integration" ? 1 : -1))
-    .map(([email]) => ({ value: email, label: actorLabel(email) })));
+    .map(([email]) => ({ value: email, label: email })));
 }
 
 const actorLabel = (email) => (email || "Alguien").includes("@") ? email.split("@")[0] : email;
