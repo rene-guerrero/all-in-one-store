@@ -569,9 +569,9 @@ $("#category-list").addEventListener("click", async (e) => {
   }
 });
 
-/* Tabs are in the URL (?tab=uso) so a reload or a shared link opens the same tab, and back/forward
+/* Tabs are in the URL (?tab=usage) so a reload or a shared link opens the same tab, and back/forward
    move between tabs. A query parameter, not #: invite and password links use the hash. */
-const TAB_SLUGS = { products: "productos", categories: "categorias", usage: "uso", activity: "actividad" };
+const TAB_SLUGS = { products: "products", categories: "categories", usage: "usage", activity: "activity" };
 let currentTab = "products";
 const tabFromUrl = () => {
   const slug = new URLSearchParams(location.search).get("tab");
@@ -592,7 +592,7 @@ function showTab(which, { push = false } = {}) {
   if (push) {
     const url = new URL(location.href);
     url.search = which === "products" ? "" : `?tab=${TAB_SLUGS[which]}`;
-    if (which === "usage" && usageDays !== 7) url.searchParams.set("dias", usageDays); // keep the chosen period
+    if (which === "usage" && usageDays !== 7) url.searchParams.set("days", usageDays); // keep the chosen period
     history.pushState({ tab: which }, "", url);
   }
   document.querySelectorAll(".admin-tabs [data-tab]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.tab === which));
