@@ -47,6 +47,7 @@ async function showForSession(session) {
   try { localStorage.setItem("aio-staff", "1"); } catch { /* storage blocked */ }
   await Promise.all([loadCategories(), loadProducts()]);
   renderCategories();
+  showTab(tabFromUrl());
   loadSyncSummary();
 }
 
@@ -568,11 +569,33 @@ $("#category-list").addEventListener("click", async (e) => {
   }
 });
 
+/* Tabs are in the URL (?tab=uso) so a reload or a shared link opens the same tab, and back/forward
+   move between tabs. A query parameter, not #: invite and password links use the hash. */
+const TAB_SLUGS = { products: "productos", categories: "categorias", usage: "uso", activity: "actividad" };
+let currentTab = "products";
+const tabFromUrl = () => {
+  const slug = new URLSearchParams(location.search).get("tab");
+  return Object.keys(TAB_SLUGS).find((k) => TAB_SLUGS[k] === slug) || "products";
+};
+
 document.querySelector(".admin-tabs").addEventListener("click", (e) => {
   const tab = e.target.closest("[data-tab]");
-  if (!tab) return;
-  document.querySelectorAll(".admin-tabs [data-tab]").forEach((b) => b.setAttribute("aria-pressed", b === tab));
-  const which = tab.dataset.tab;
+  if (tab && tab.dataset.tab !== currentTab) showTab(tab.dataset.tab, { push: true });
+});
+window.addEventListener("popstate", () => {
+  const which = tabFromUrl();
+  if (which !== currentTab) showTab(which);
+});
+
+function showTab(which, { push = false } = {}) {
+  currentTab = which;
+  if (push) {
+    const url = new URL(location.href);
+    url.search = which === "products" ? "" : `?tab=${TAB_SLUGS[which]}`;
+    if (which === "usage" && usageDays !== 7) url.searchParams.set("dias", usageDays); // keep the chosen period
+    history.pushState({ tab: which }, "", url);
+  }
+  document.querySelectorAll(".admin-tabs [data-tab]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.tab === which));
   if (which !== "products" && state.sharing) setSharing(false);
   $("#admin-layout").hidden = which !== "products";
   $("#categories-panel").hidden = which !== "categories";
@@ -581,7 +604,7 @@ document.querySelector(".admin-tabs").addEventListener("click", (e) => {
   if (which === "usage") loadUsage();
   if (which === "categories") renderCategories();
   if (which === "activity") loadActivity();
-});
+}
 
 /* Actividad: store log written by database triggers (activity_log). */
 const ACTIVITY_PAGE = 100;

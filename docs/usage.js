@@ -1,15 +1,29 @@
 /* Admin "Uso" tab: store usage from anonymous store events. usage_stats() does the counting in the
    database; this file only draws it. Loaded after admin.js (uses sb, $, escapeHtml, quote). */
-let usageDays = 7;
+// The period is kept in the URL (?tab=uso&dias=30) so a reload shows the same range.
+const USAGE_DAYS = [1, 7, 30, 90];
+let usageDays = USAGE_DAYS.includes(Number(new URLSearchParams(location.search).get("dias")))
+  ? Number(new URLSearchParams(location.search).get("dias")) : 7;
+const markUsageRange = () => $("#usage-range").querySelectorAll("[data-days]")
+  .forEach((x) => x.setAttribute("aria-pressed", Number(x.dataset.days) === usageDays));
+markUsageRange();
+
 $("#usage-range").addEventListener("click", (e) => {
   const b = e.target.closest("[data-days]");
   if (!b) return;
   usageDays = Number(b.dataset.days);
-  $("#usage-range").querySelectorAll("[data-days]").forEach((x) => x.setAttribute("aria-pressed", x === b));
+  markUsageRange();
+  const url = new URL(location.href);
+  if (usageDays === 7) url.searchParams.delete("dias");
+  else url.searchParams.set("dias", usageDays);
+  history.replaceState(history.state, "", url);
   loadUsage();
 });
 
 async function loadUsage() {
+  // Back/forward can land on a URL with another period.
+  const fromUrl = Number(new URLSearchParams(location.search).get("dias"));
+  if (USAGE_DAYS.includes(fromUrl) && fromUrl !== usageDays) { usageDays = fromUrl; markUsageRange(); }
   $("#usage-status").textContent = "Cargando…";
   const { data, error } = await sb.rpc("usage_stats", { p_days: usageDays });
   if (error) {
