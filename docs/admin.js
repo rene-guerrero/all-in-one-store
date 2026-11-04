@@ -312,7 +312,9 @@ function shareCaption(products) {
     ...products.map((p) => `📱 ${p.name}`), "",
     `🚚 ${STORE.delivery}`,
     `📍 ${STORE.address}`,
-    `💬 WhatsApp: ${STORE.phone}`,
+    // Full links: in a post they become tappable (wa.me opens a chat with the shop directly).
+    `💬 WhatsApp: https://wa.me/${STORE.whatsapp}`,
+    `📘 Síguenos en Facebook: ${STORE.facebook}`,
     `🛒 Catálogo completo: ${STORE.url}`,
   ].join("\n");
 }
