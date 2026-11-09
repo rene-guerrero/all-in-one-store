@@ -32,6 +32,8 @@ def model_keys(text: str) -> set[str]:
     """'Samsung A13 4G/A23/A32 5G' -> {'samsunga13', 'samsunga23', 'samsunga32'} (4G/5G dropped)."""
     t = fold(text).replace("pro max", "promax").replace(" pm", " promax").replace("+", "plus")
     t = re.sub(r"[^a-z0-9/ ]", " ", t)
+    # OCR often reads the "2" of years and models as "z" ("Spark Go z023", "z0C").
+    t = re.sub(r"(?<=\d)z|z(?=\d)", "2", t)
     keys, brand, prefix = set(), None, ""
     for part in t.split("/"):
         # 4G/5G variants share covers; strip it whether written "A13 4G" or "A134G".

@@ -3,6 +3,8 @@
 window.STORE_CONFIG = {
   SUPABASE_URL: "https://xtqplczqhxdvifzlavgj.supabase.co",
   SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh0cXBsY3pxaHhkdmlmemxhdmdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM1NTE3NjgsImV4cCI6MjEwOTEyNzc2OH0.mhyQBFv4MhNcqiE22-jjmwK0g5KgTOJhiAf1Hyu3pM8",
+  // Cloudflare Turnstile (bot check on the admin login). The site key is public; its secret lives in Supabase.
+  TURNSTILE_SITE_KEY: "0x4AAAAAAF5_N3nKR1N7g7MV",
   STORE: {
     name: "All in One",
     tagline: "Covers, micas y accesorios para celulares en Holguín",

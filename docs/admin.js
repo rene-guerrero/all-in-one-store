@@ -115,14 +115,43 @@ function renderSyncSummary(s, ranAt, latestId, runs) {
   });
 }
 
+/* Cloudflare Turnstile: Supabase refuses sign-in and password-reset requests without a valid token.
+   Tokens are single-use, so the widget is reset after every attempt. */
+let turnstileId = null;
+function renderTurnstile() {
+  if (turnstileId !== null || !window.turnstile) return;
+  turnstileId = window.turnstile.render("#turnstile", {
+    sitekey: window.STORE_CONFIG.TURNSTILE_SITE_KEY, language: "es", theme: "auto", appearance: "interaction-only",
+  });
+}
+// The Turnstile script loads async; render as soon as both it and the login form are ready.
+const turnstileReady = setInterval(() => { if (window.turnstile) { clearInterval(turnstileReady); renderTurnstile(); } }, 200);
+
+function turnstileToken(status) {
+  const token = turnstileId !== null ? window.turnstile.getResponse(turnstileId) : "";
+  if (!token) {
+    status.textContent = "Espera un momento a que termine la verificación de seguridad e inténtalo de nuevo.";
+    status.classList.add("error");
+  }
+  return token;
+}
+const resetTurnstile = () => { if (turnstileId !== null) window.turnstile.reset(turnstileId); };
+
 $("#login").addEventListener("submit", async (e) => {
   e.preventDefault();
   const status = $("#login-status");
   status.classList.remove("error");
+  const captchaToken = turnstileToken(status);
+  if (!captchaToken) return;
   status.textContent = "Entrando…";
-  const { data, error } = await sb.auth.signInWithPassword({ email: $("#email").value, password: $("#password").value });
+  const { data, error } = await sb.auth.signInWithPassword({
+    email: $("#email").value, password: $("#password").value, options: { captchaToken },
+  });
+  resetTurnstile();
   if (error) {
-    status.textContent = "Correo o contraseña incorrectos.";
+    status.textContent = /captcha/i.test(error.message)
+      ? "La verificación de seguridad falló. Inténtalo de nuevo."
+      : "Correo o contraseña incorrectos.";
     status.classList.add("error");
     return;
   }
@@ -144,7 +173,10 @@ $("#forgot").addEventListener("click", async () => {
     status.classList.add("error");
     return;
   }
-  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.href.split("#")[0] });
+  const captchaToken = turnstileToken(status);
+  if (!captchaToken) return;
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.href.split("#")[0], captchaToken });
+  resetTurnstile();
   status.textContent = error ? error.message : "Te enviamos un correo para crear una nueva contraseña.";
   status.classList.toggle("error", !!error);
 });

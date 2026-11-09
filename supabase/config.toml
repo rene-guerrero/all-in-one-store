@@ -212,10 +212,11 @@ token_verifications = 30
 web3 = 30
 
 # Configure one of the supported captcha providers: `hcaptcha`, `turnstile`.
-# [auth.captcha]
-# enabled = true
-# provider = "hcaptcha"
-# secret = ""
+[auth.captcha]
+enabled = true
+provider = "turnstile"
+# Cloudflare Turnstile secret, read from the gitignored .env (the site key is in docs/config.js).
+secret = "env(TURNSTILE_SECRET)"
 
 [auth.email]
 # Keep the email provider on (this flag disables email sign-in entirely). New sign-ups are blocked by [auth] enable_signup above.

@@ -842,3 +842,5 @@ dialog.cart-dialog::backdrop { background: rgb(5 10 15 / 60%); }
 }
 .to-buy { border-color: var(--brand); }
 .to-buy .rank-bar i { background: var(--accent); }
+.turnstile { min-height: 0; display: flex; justify-content: center; }
+.turnstile:empty { display: none; }
